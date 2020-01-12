@@ -149,7 +149,7 @@ func (h *httpHandler) handleRequest(conn net.Conn, req *http.Request) {
 		u += "@"
 	}
 	log.Logf("[http] %s%s -> %s -> %s",
-		u, conn.RemoteAddr(), h.options.Node.String(), host)
+		u, conn.RemoteAddr(), conn.LocalAddr().String(), host)
 
 	if Debug {
 		dump, _ := httputil.DumpRequest(req, false)
@@ -252,6 +252,7 @@ func (h *httpHandler) handleRequest(conn net.Conn, req *http.Request) {
 		}
 
 		cc, err = route.Dial(host,
+			conn.LocalAddr().String(),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

@@ -128,7 +128,7 @@ func (h *shadow2Handler) Handle(conn net.Conn) {
 
 	host := addr.String()
 	log.Logf("[ss2] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), host)
+		conn.RemoteAddr(), conn.LocalAddr().String(), host)
 
 	if !Can("tcp", host, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[ss2] %s - %s : Unauthorized to tcp connect to %s",
@@ -170,6 +170,7 @@ func (h *shadow2Handler) Handle(conn net.Conn) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			conn.LocalAddr().String(),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

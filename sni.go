@@ -75,9 +75,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 				conn.RemoteAddr(), conn.LocalAddr(), err)
 			return
 		}
-		if !req.URL.IsAbs() {
-			req.URL.Scheme = "http" // make sure that the URL is absolute
-		}
+
 		handler := &httpHandler{options: h.options}
 		handler.Init()
 		handler.handleRequest(conn, req)
@@ -98,7 +96,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 	host = net.JoinHostPort(host, sport)
 
 	log.Logf("[sni] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), host)
+		conn.RemoteAddr(), conn.LocalAddr().String(), host)
 
 	if !Can("tcp", host, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[sni] %s -> %s : Unauthorized to tcp connect to %s",
@@ -139,6 +137,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			conn.LocalAddr().String(),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

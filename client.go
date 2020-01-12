@@ -85,7 +85,7 @@ func (tr *tcpTransporter) Dial(addr string, options ...DialOption) (net.Conn, er
 	if opts.Chain == nil {
 		return net.DialTimeout("tcp", addr, timeout)
 	}
-	return opts.Chain.Dial(addr)
+	return opts.Chain.Dial(addr, "")
 }
 
 func (tr *tcpTransporter) Handshake(conn net.Conn, options ...HandshakeOption) (net.Conn, error) {

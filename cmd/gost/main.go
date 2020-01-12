@@ -23,6 +23,7 @@ var (
 )
 
 func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	gost.SetLogger(&gost.LogLogger{})
 
 	var (

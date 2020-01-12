@@ -40,6 +40,7 @@ type HandlerOptions struct {
 	Node          Node
 	Host          string
 	IPs           []string
+	TCPMode       bool
 }
 
 // HandlerOption allows a common way to set handler options.
@@ -192,6 +193,13 @@ func HostHandlerOption(host string) HandlerOption {
 func IPsHandlerOption(ips []string) HandlerOption {
 	return func(opts *HandlerOptions) {
 		opts.IPs = ips
+	}
+}
+
+// TCPModeHandlerOption sets the tcp mode for tun/tap device.
+func TCPModeHandlerOption(b bool) HandlerOption {
+	return func(opts *HandlerOptions) {
+		opts.TCPMode = b
 	}
 }
 

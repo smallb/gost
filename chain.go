@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"time"
+	"strings"
 
 	"github.com/go-log/log"
 )
@@ -102,7 +103,7 @@ func (c *Chain) IsEmpty() bool {
 
 // Dial connects to the target address addr through the chain.
 // If the chain is empty, it will use the net.Dial directly.
-func (c *Chain) Dial(addr string, opts ...ChainOption) (conn net.Conn, err error) {
+func (c *Chain) Dial(addr, exitIp string, opts ...ChainOption) (conn net.Conn, err error) {
 	options := &ChainOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -117,7 +118,7 @@ func (c *Chain) Dial(addr string, opts ...ChainOption) (conn net.Conn, err error
 	}
 
 	for i := 0; i < retries; i++ {
-		conn, err = c.dialWithOptions(addr, options)
+		conn, err = c.dialWithOptions(addr, exitIp, options)
 		if err == nil {
 			break
 		}
@@ -125,7 +126,7 @@ func (c *Chain) Dial(addr string, opts ...ChainOption) (conn net.Conn, err error
 	return
 }
 
-func (c *Chain) dialWithOptions(addr string, options *ChainOptions) (net.Conn, error) {
+func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net.Conn, error) {
 	if options == nil {
 		options = &ChainOptions{}
 	}
@@ -142,7 +143,27 @@ func (c *Chain) dialWithOptions(addr string, options *ChainOptions) (net.Conn, e
 	}
 
 	if route.IsEmpty() {
-		return net.DialTimeout("tcp", ipAddr, timeout)
+		if "" == exitIp {
+			return net.DialTimeout("tcp", ipAddr, timeout)
+		}
+		index := strings.LastIndex(exitIp, ":")
+		if (index != 0) {
+			exitIp = exitIp[:index] + ":0"
+		}
+		laddr, err := net.ResolveTCPAddr("tcp", exitIp)
+		if err != nil {
+			return nil, err
+		}
+		raddr, err := net.ResolveTCPAddr("tcp", ipAddr)
+		if err != nil {
+			return nil, err
+		}
+		conn, err := net.DialTCP("tcp", laddr, raddr)
+		if err != nil {
+			return nil, err
+		}
+		// conn.SetDeadline(time.Now().Add(timeout))
+		return conn, nil
 	}
 
 	conn, err := route.getConn()

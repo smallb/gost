@@ -104,7 +104,7 @@ func (tr *mwsTransporter) Dial(addr string, options ...DialOption) (conn net.Con
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr)
+			conn, err = opts.Chain.Dial(addr, "")
 		}
 		if err != nil {
 			return
@@ -261,7 +261,7 @@ func (tr *mwssTransporter) Dial(addr string, options ...DialOption) (conn net.Co
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr)
+			conn, err = opts.Chain.Dial(addr, "")
 		}
 		if err != nil {
 			return

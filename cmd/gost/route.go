@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ginuerzh/gost"
@@ -162,10 +163,9 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 	case "http2":
 		tr = gost.HTTP2Transporter(tlsCfg)
 	case "h2":
-		tr = gost.H2Transporter(tlsCfg)
+		tr = gost.H2Transporter(tlsCfg, node.Get("path"))
 	case "h2c":
-		tr = gost.H2CTransporter()
-
+		tr = gost.H2CTransporter(node.Get("path"))
 	case "obfs4":
 		tr = gost.Obfs4Transporter()
 	case "ohttp":
@@ -296,6 +296,11 @@ func (r *route) GenRouters() ([]router, error) {
 		wsOpts.WriteBufferSize = node.GetInt("wbuf")
 		wsOpts.Path = node.Get("path")
 
+		ttl, err := time.ParseDuration(node.Get("ttl"))
+		if err != nil {
+			ttl = time.Duration(node.GetInt("ttl")) * time.Second
+		}
+
 		var ln gost.Listener
 		switch node.Transport {
 		case "tls":
@@ -342,9 +347,9 @@ func (r *route) GenRouters() ([]router, error) {
 		case "http2":
 			ln, err = gost.HTTP2Listener(node.Addr, tlsCfg)
 		case "h2":
-			ln, err = gost.H2Listener(node.Addr, tlsCfg)
+			ln, err = gost.H2Listener(node.Addr, tlsCfg, node.Get("path"))
 		case "h2c":
-			ln, err = gost.H2CListener(node.Addr)
+			ln, err = gost.H2CListener(node.Addr, node.Get("path"))
 		case "tcp":
 			// Directly use SSH port forwarding if the last chain node is forward+ssh
 			if chain.LastNode().Protocol == "forward" && chain.LastNode().Transport == "ssh" {
@@ -360,11 +365,27 @@ func (r *route) GenRouters() ([]router, error) {
 			}
 			ln, err = gost.TCPRemoteForwardListener(node.Addr, chain)
 		case "udp":
-			ln, err = gost.UDPDirectForwardListener(node.Addr, time.Duration(node.GetInt("ttl"))*time.Second)
+			ln, err = gost.UDPDirectForwardListener(node.Addr, &gost.UDPForwardListenConfig{
+				TTL:       ttl,
+				Backlog:   node.GetInt("backlog"),
+				QueueSize: node.GetInt("queue"),
+			})
 		case "rudp":
-			ln, err = gost.UDPRemoteForwardListener(node.Addr, chain, time.Duration(node.GetInt("ttl"))*time.Second)
+			ln, err = gost.UDPRemoteForwardListener(node.Addr,
+				chain,
+				&gost.UDPForwardListenConfig{
+					TTL:       ttl,
+					Backlog:   node.GetInt("backlog"),
+					QueueSize: node.GetInt("queue"),
+				})
 		case "ssu":
-			ln, err = gost.ShadowUDPListener(node.Addr, node.User, time.Duration(node.GetInt("ttl"))*time.Second)
+			ln, err = gost.ShadowUDPListener(node.Addr,
+				node.User,
+				&gost.UDPForwardListenConfig{
+					TTL:       ttl,
+					Backlog:   node.GetInt("backlog"),
+					QueueSize: node.GetInt("queue"),
+				})
 		case "obfs4":
 			if err = gost.Obfs4Init(node, true); err != nil {
 				return nil, err
@@ -372,6 +393,24 @@ func (r *route) GenRouters() ([]router, error) {
 			ln, err = gost.Obfs4Listener(node.Addr)
 		case "ohttp":
 			ln, err = gost.ObfsHTTPListener(node.Addr)
+		case "tun":
+			cfg := gost.TunConfig{
+				Name:    node.Get("name"),
+				Addr:    node.Get("net"),
+				MTU:     node.GetInt("mtu"),
+				Routes:  strings.Split(node.Get("route"), ","),
+				Gateway: node.Get("gw"),
+			}
+			ln, err = gost.TunListener(cfg)
+		case "tap":
+			cfg := gost.TapConfig{
+				Name:    node.Get("name"),
+				Addr:    node.Get("net"),
+				MTU:     node.GetInt("mtu"),
+				Routes:  strings.Split(node.Get("route"), ","),
+				Gateway: node.Get("gw"),
+			}
+			ln, err = gost.TapListener(cfg)
 		default:
 			ln, err = gost.TCPListener(node.Addr)
 		}
@@ -409,6 +448,10 @@ func (r *route) GenRouters() ([]router, error) {
 			handler = gost.ShadowUDPdHandler()
 		case "sni":
 			handler = gost.SNIHandler()
+		case "tun":
+			handler = gost.TunHandler()
+		case "tap":
+			handler = gost.TapHandler()
 		default:
 			// start from 2.5, if remote is not empty, then we assume that it is a forward tunnel.
 			if node.Remote != "" {
@@ -455,6 +498,7 @@ func (r *route) GenRouters() ([]router, error) {
 			gost.KnockingHandlerOption(node.Get("knock")),
 			gost.NodeHandlerOption(node),
 			gost.IPsHandlerOption(ips),
+			gost.TCPModeHandlerOption(node.GetBool("tcp")),
 		)
 
 		rt := router{

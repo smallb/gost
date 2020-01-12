@@ -79,6 +79,7 @@ func (c *http2Connector) Connect(conn net.Conn, addr string, options ...ConnectO
 	}
 	resp, err := cc.client.Do(req)
 	if err != nil {
+		cc.Close()
 		return nil, err
 	}
 	if Debug {
@@ -130,11 +131,11 @@ func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, 
 
 	client, ok := tr.clients[addr]
 	if !ok {
-		// NOTE: due to the dummy connection, HTTP2 node in a proxy chain can not be marked as dead.
-		// There is no real connection to the HTTP2 server at this moment.
-		// So we should try to connect the server.
-		conn, err := opts.Chain.Dial(addr)
+		// NOTE: There is no real connection to the HTTP2 server at this moment.
+		// So we try to connect to the server to check the server health.
+		conn, err := opts.Chain.Dial(addr, "")
 		if err != nil {
+			log.Log("http2 dial:", addr, err)
 			return nil, err
 		}
 		conn.Close()
@@ -146,7 +147,7 @@ func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, 
 		transport := http2.Transport{
 			TLSClientConfig: tr.tlsConfig,
 			DialTLS: func(network, adr string, cfg *tls.Config) (net.Conn, error) {
-				conn, err := opts.Chain.Dial(adr)
+				conn, err := opts.Chain.Dial(adr, "")
 				if err != nil {
 					return nil, err
 				}
@@ -163,6 +164,11 @@ func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, 
 	return &http2ClientConn{
 		addr:   addr,
 		client: client,
+		onClose: func() {
+			tr.clientMutex.Lock()
+			defer tr.clientMutex.Unlock()
+			delete(tr.clients, addr)
+		},
 	}, nil
 }
 
@@ -174,27 +180,31 @@ func (tr *http2Transporter) Multiplex() bool {
 	return true
 }
 
+// TODO: clean closed clients
 type h2Transporter struct {
 	clients     map[string]*http.Client
 	clientMutex sync.Mutex
 	tlsConfig   *tls.Config
+	path        string
 }
 
 // H2Transporter creates a Transporter that is used by HTTP2 h2 tunnel client.
-func H2Transporter(config *tls.Config) Transporter {
+func H2Transporter(config *tls.Config, path string) Transporter {
 	if config == nil {
 		config = &tls.Config{InsecureSkipVerify: true}
 	}
 	return &h2Transporter{
 		clients:   make(map[string]*http.Client),
 		tlsConfig: config,
+		path:      path,
 	}
 }
 
 // H2CTransporter creates a Transporter that is used by HTTP2 h2c tunnel client.
-func H2CTransporter() Transporter {
+func H2CTransporter(path string) Transporter {
 	return &h2Transporter{
 		clients: make(map[string]*http.Client),
+		path:    path,
 	}
 }
 
@@ -215,7 +225,7 @@ func (tr *h2Transporter) Dial(addr string, options ...DialOption) (net.Conn, err
 		transport := http2.Transport{
 			TLSClientConfig: tr.tlsConfig,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				conn, err := opts.Chain.Dial(addr)
+				conn, err := opts.Chain.Dial(addr, "")
 				if err != nil {
 					return nil, err
 				}
@@ -245,6 +255,11 @@ func (tr *h2Transporter) Dial(addr string, options ...DialOption) (net.Conn, err
 		Host:          addr,
 		ContentLength: -1,
 	}
+	if tr.path != "" {
+		req.Method = http.MethodGet
+		req.URL.Path = tr.path
+	}
+
 	if Debug {
 		dump, _ := httputil.DumpRequest(req, false)
 		log.Log("[http2]", string(dump))
@@ -333,7 +348,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 		u += "@"
 	}
 	log.Logf("[http2] %s%s -> %s -> %s",
-		u, r.RemoteAddr, h.options.Node.String(), host)
+		u, r.RemoteAddr, laddr, host)
 
 	if Debug {
 		dump, _ := httputil.DumpRequest(r, false)
@@ -400,6 +415,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			laddr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
@@ -644,12 +660,13 @@ type h2Listener struct {
 	net.Listener
 	server    *http2.Server
 	tlsConfig *tls.Config
+	path      string
 	connChan  chan net.Conn
 	errChan   chan error
 }
 
 // H2Listener creates a Listener for HTTP2 h2 tunnel server.
-func H2Listener(addr string, config *tls.Config) (Listener, error) {
+func H2Listener(addr string, config *tls.Config, path string) (Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -666,6 +683,7 @@ func H2Listener(addr string, config *tls.Config) (Listener, error) {
 			IdleTimeout:                  5 * time.Minute,
 		},
 		tlsConfig: config,
+		path:      path,
 		connChan:  make(chan net.Conn, 1024),
 		errChan:   make(chan error, 1),
 	}
@@ -675,7 +693,7 @@ func H2Listener(addr string, config *tls.Config) (Listener, error) {
 }
 
 // H2CListener creates a Listener for HTTP2 h2c tunnel server.
-func H2CListener(addr string) (Listener, error) {
+func H2CListener(addr string, path string) (Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -685,6 +703,7 @@ func H2CListener(addr string) (Listener, error) {
 		server:   &http2.Server{
 			// MaxConcurrentStreams:         1000,
 		},
+		path:     path,
 		connChan: make(chan net.Conn, 1024),
 		errChan:  make(chan error, 1),
 	}
@@ -727,7 +746,8 @@ func (l *h2Listener) handleLoop(conn net.Conn) {
 }
 
 func (l *h2Listener) handleFunc(w http.ResponseWriter, r *http.Request) {
-	log.Logf("[http2] %s %s - %s %s", r.Method, r.RemoteAddr, r.Host, r.Proto)
+	log.Logf("[http2] %s -> %s %s %s %s",
+		r.RemoteAddr, r.Host, r.Method, r.RequestURI, r.Proto)
 	if Debug {
 		dump, _ := httputil.DumpRequest(r, false)
 		log.Log("[http2]", string(dump))
@@ -735,7 +755,8 @@ func (l *h2Listener) handleFunc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Proxy-Agent", "gost/"+Version)
 	conn, err := l.upgrade(w, r)
 	if err != nil {
-		log.Logf("[http2] %s %s - %s %s", r.Method, r.RemoteAddr, r.Host, r.Proto)
+		log.Logf("[http2] %s - %s %s %s %s: %s",
+			r.RemoteAddr, r.Host, r.Method, r.RequestURI, r.Proto, err)
 		return
 	}
 	select {
@@ -749,10 +770,16 @@ func (l *h2Listener) handleFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *h2Listener) upgrade(w http.ResponseWriter, r *http.Request) (*http2Conn, error) {
-	if r.Method != http.MethodConnect {
+	if l.path == "" && r.Method != http.MethodConnect {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		return nil, errors.New("Method not allowed")
+		return nil, errors.New("method not allowed")
 	}
+
+	if l.path != "" && r.RequestURI != l.path {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, errors.New("bad request")
+	}
+
 	w.WriteHeader(http.StatusOK)
 	if fw, ok := w.(http.Flusher); ok {
 		fw.Flush() // write header to client
@@ -889,8 +916,16 @@ func (c *http2ServerConn) SetWriteDeadline(t time.Time) error {
 // a dummy HTTP2 client conn used by HTTP2 client connector
 type http2ClientConn struct {
 	nopConn
-	addr   string
-	client *http.Client
+	addr    string
+	client  *http.Client
+	onClose func()
+}
+
+func (c *http2ClientConn) Close() error {
+	if c.onClose != nil {
+		c.onClose()
+	}
+	return nil
 }
 
 type flushWriter struct {

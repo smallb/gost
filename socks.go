@@ -383,7 +383,7 @@ func (tr *socks5MuxBindTransporter) Dial(addr string, options ...DialOption) (co
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr)
+			conn, err = opts.Chain.Dial(addr, "")
 		}
 		if err != nil {
 			return
@@ -833,7 +833,7 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 	host := req.Addr.String()
 
 	log.Logf("[socks5] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), host)
+		conn.RemoteAddr(), conn.LocalAddr().String(), host)
 
 	if !Can("tcp", host, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[socks5] %s - %s : Unauthorized to tcp connect to %s",
@@ -887,6 +887,7 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			conn.LocalAddr().String(),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
@@ -928,7 +929,7 @@ func (h *socks5Handler) handleBind(conn net.Conn, req *gosocks5.Request) {
 	addr := req.Addr.String()
 
 	log.Logf("[socks5-bind] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), addr)
+		conn.RemoteAddr(), conn.LocalAddr().String(), addr)
 
 	if h.options.Chain.IsEmpty() {
 		if !Can("rtcp", addr, h.options.Whitelist, h.options.Blacklist) {
@@ -1647,7 +1648,7 @@ func (h *socks4Handler) handleConnect(conn net.Conn, req *gosocks4.Request) {
 	addr := req.Addr.String()
 
 	log.Logf("[socks4] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), addr)
+		conn.RemoteAddr(), conn.LocalAddr().String(), addr)
 
 	if !Can("tcp", addr, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[socks4] %s - %s : Unauthorized to tcp connect to %s",
@@ -1701,6 +1702,7 @@ func (h *socks4Handler) handleConnect(conn net.Conn, req *gosocks4.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(addr,
+			conn.LocalAddr().String(),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

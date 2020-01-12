@@ -151,7 +151,7 @@ func (tr *sshForwardTransporter) Dial(addr string, options ...DialOption) (conn 
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr)
+			conn, err = opts.Chain.Dial(addr, "")
 		}
 		if err != nil {
 			return
@@ -260,7 +260,7 @@ func (tr *sshTunnelTransporter) Dial(addr string, options ...DialOption) (conn n
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr)
+			conn, err = opts.Chain.Dial(addr, "")
 		}
 		if err != nil {
 			return
@@ -560,6 +560,7 @@ func (h *sshForwardHandler) directPortForwardChannel(channel ssh.Channel, raddr 
 	}
 
 	conn, err := h.options.Chain.Dial(raddr,
+		h.options.Node.Addr,
 		RetryChainOption(h.options.Retries),
 		TimeoutChainOption(h.options.Timeout),
 		HostsChainOption(h.options.Hosts),

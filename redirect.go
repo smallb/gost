@@ -50,6 +50,7 @@ func (h *tcpRedirectHandler) Handle(c net.Conn) {
 	log.Logf("[red-tcp] %s -> %s", srcAddr, dstAddr)
 
 	cc, err := h.options.Chain.Dial(dstAddr.String(),
+		srcAddr.String(),
 		RetryChainOption(h.options.Retries),
 		TimeoutChainOption(h.options.Timeout),
 	)
