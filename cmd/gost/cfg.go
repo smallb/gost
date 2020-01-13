@@ -22,6 +22,7 @@ type baseConfig struct {
 	route
 	Routes []route
 	Debug  bool
+	ReusePort bool
 }
 
 func parseBaseConfig(s string) (*baseConfig, error) {

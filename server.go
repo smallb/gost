@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-log/log"
+	reuse "github.com/libp2p/go-reuseport"
 )
 
 // Accepter represents a network endpoint that can accept connection from peer.
@@ -108,15 +109,15 @@ type tcpListener struct {
 
 // TCPListener creates a Listener for TCP proxy server.
 func TCPListener(addr string) (Listener, error) {
-	laddr, err := net.ResolveTCPAddr("tcp", addr)
+	laddr, err := reuse.ResolveAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	ln, err := net.ListenTCP("tcp", laddr)
+	ln, err := reuse.Listen("tcp", laddr.String())
 	if err != nil {
 		return nil, err
 	}
-	return &tcpListener{Listener: tcpKeepAliveListener{ln}}, nil
+	return &tcpListener{Listener: tcpKeepAliveListener{ln.(*net.TCPListener)}}, nil
 }
 
 type tcpKeepAliveListener struct {

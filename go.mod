@@ -24,6 +24,7 @@ require (
 	github.com/klauspost/compress v1.4.1
 	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/klauspost/reedsolomon v1.7.0 // indirect
+	github.com/libp2p/go-reuseport v0.0.1
 	github.com/lucas-clemente/aes12 v0.0.0-20171027163421-cd47fb39b79f // indirect
 	github.com/lucas-clemente/quic-go v0.10.0
 	github.com/lucas-clemente/quic-go-certificates v0.0.0-20160823095156-d2f86524cced // indirect
@@ -31,7 +32,6 @@ require (
 	github.com/milosgajdos83/tenus v0.0.0-20190415114537-1f3ed00ae7d8
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
-	github.com/pkg/errors v0.8.1 // indirect
 	github.com/ryanuber/go-glob v0.0.0-20170128012129-256dc444b735
 	github.com/shadowsocks/go-shadowsocks2 v0.0.11
 	github.com/shadowsocks/shadowsocks-go v0.0.0-20170121203516-97a5c71f80ba
