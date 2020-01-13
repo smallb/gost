@@ -12,6 +12,7 @@ import (
 
 	"github.com/ginuerzh/gosocks5"
 	"github.com/go-log/log"
+	reuse "github.com/libp2p/go-reuseport"
 	smux "gopkg.in/xtaci/smux.v1"
 )
 
@@ -633,7 +634,7 @@ func TCPRemoteForwardListener(addr string, chain *Chain) (Listener, error) {
 	}
 
 	if !ln.isChainValid() {
-		ln.ln, err = net.Listen("tcp", ln.addr.String())
+		ln.ln, err = reuse.Listen("tcp", ln.addr.String())
 		return ln, err
 	}
 
