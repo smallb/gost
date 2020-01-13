@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-log/log"
 	"golang.org/x/crypto/ssh"
+	reuse "github.com/libp2p/go-reuseport"
 )
 
 // Applicable SSH Request types for Port Forwarding - RFC 4254 7.X
@@ -595,7 +596,7 @@ func (h *sshForwardHandler) tcpipForwardRequest(sshConn ssh.Conn, req *ssh.Reque
 		return
 	}
 
-	ln, err := net.Listen("tcp", addr) //tie to the client connection
+	ln, err := reuse.Listen("tcp", addr) //tie to the client connection
 	if err != nil {
 		log.Log("[ssh-rtcp]", err)
 		req.Reply(false, nil)
@@ -678,7 +679,7 @@ type sshTunnelListener struct {
 
 // SSHTunnelListener creates a Listener for SSH tunnel server.
 func SSHTunnelListener(addr string, config *SSHConfig) (Listener, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := reuse.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
