@@ -3,10 +3,11 @@ package gost
 import (
 	"errors"
 	"net"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/go-log/log"
+	reuse "github.com/libp2p/go-reuseport"
 )
 
 var (
@@ -147,18 +148,19 @@ func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net
 			return net.DialTimeout("tcp", ipAddr, timeout)
 		}
 		index := strings.LastIndex(exitIp, ":")
-		if (index != 0) {
+		if index != 0 {
 			exitIp = exitIp[:index] + ":0"
 		}
-		laddr, err := net.ResolveTCPAddr("tcp", exitIp)
+
+		laddr, err := reuse.ResolveAddr("tcp", exitIp)
 		if err != nil {
 			return nil, err
 		}
-		raddr, err := net.ResolveTCPAddr("tcp", ipAddr)
+		raddr, err := reuse.ResolveAddr("tcp", ipAddr)
 		if err != nil {
 			return nil, err
 		}
-		conn, err := net.DialTCP("tcp", laddr, raddr)
+		conn, err := reuse.Dial("tcp", laddr.String(), raddr.String())
 		if err != nil {
 			return nil, err
 		}
