@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 	"golang.org/x/net/http2"
 )
 

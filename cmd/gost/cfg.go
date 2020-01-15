@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 )
 
 var (

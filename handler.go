@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/smallb/gosocks4"
-	"github.com/smallb/gosocks5"
+	"github.com/ginuerzh/gosocks4"
+	"github.com/ginuerzh/gosocks5"
 	"github.com/go-log/log"
 )
 

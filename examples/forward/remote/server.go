@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"log"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 )
 
 func main() {

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/smallb/gosocks5"
+	"github.com/ginuerzh/gosocks5"
 	"github.com/go-log/log"
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
 )

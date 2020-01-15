@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 )
 
 var (

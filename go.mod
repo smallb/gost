@@ -24,7 +24,7 @@ require (
 	github.com/klauspost/compress v1.4.1
 	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/klauspost/reedsolomon v1.7.0 // indirect
-	github.com/smallb/go-reuseport v0.0.1
+	github.com/libp2p/go-reuseport v0.0.1
 	github.com/lucas-clemente/aes12 v0.0.0-20171027163421-cd47fb39b79f // indirect
 	github.com/lucas-clemente/quic-go v0.10.0
 	github.com/lucas-clemente/quic-go-certificates v0.0.0-20160823095156-d2f86524cced // indirect

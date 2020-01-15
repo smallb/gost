@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/smallb/go-reuseport"
+	reuse "github.com/libp2p/go-reuseport"
 	"golang.org/x/net/http2"
 )
 

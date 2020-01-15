@@ -6,7 +6,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/smallb/gosocks5"
+	"github.com/ginuerzh/gosocks5"
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
 )
 

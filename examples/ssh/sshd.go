@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/smallb/gost"
+	"github.com/ginuerzh/gost"
 )
 
 var (
