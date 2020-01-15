@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-log/log"
 	"golang.org/x/crypto/ssh"
-	reuse "github.com/libp2p/go-reuseport"
+	reuse "github.com/smallb/go-reuseport"
 )
 
 // Applicable SSH Request types for Port Forwarding - RFC 4254 7.X

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/libp2p/go-reuseport"
+	reuse "github.com/smallb/go-reuseport"
 )
 
 var (
