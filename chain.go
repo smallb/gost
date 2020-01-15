@@ -145,7 +145,12 @@ func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net
 
 	if route.IsEmpty() {
 		if "" == exitIp {
-			return net.DialTimeout("tcp", ipAddr, timeout)
+			// return net.DialTimeout("tcp", ipAddr, timeout)
+			raddr, err := reuse.ResolveAddr("tcp", ipAddr)
+			if err != nil {
+				return nil, err
+			}
+			return reuse.Dial("tcp", raddr.String(), "")
 		}
 		index := strings.LastIndex(exitIp, ":")
 		if index != 0 {
