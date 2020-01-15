@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ginuerzh/gosocks5"
+	"github.com/smallb/gosocks5"
 	"github.com/go-log/log"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 )

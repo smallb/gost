@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ginuerzh/gost"
+	"github.com/smallb/gost"
 	"github.com/go-log/log"
 )
 

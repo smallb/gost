@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	dissector "github.com/ginuerzh/tls-dissector"
+	dissector "github.com/smallb/tls-dissector"
 	"github.com/go-log/log"
 )
 
