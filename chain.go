@@ -3,11 +3,9 @@ package gost
 import (
 	"errors"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/libp2p/go-reuseport"
 )
 
 var (
@@ -146,28 +144,30 @@ func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net
 	if route.IsEmpty() {
 		var laddr net.Addr
 		if "" != exitIp {
-			index := strings.LastIndex(exitIp, ":")
-			if index != 0 {
-				exitIp = exitIp[:index] + ":0"
+			host, _, err := net.SplitHostPort(exitIp)
+			if err != nil {
+				return nil, err
 			}
 
-			laddr, err = reuse.ResolveAddr("tcp", exitIp)
+			if "::" == host || ":" == host || "" == host {
+				host = ""
+			}
+			laddr, err = net.ResolveTCPAddr("tcp", host+":0")
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		raddr, err := reuse.ResolveAddr("tcp", ipAddr)
+		raddr, err := net.ResolveTCPAddr("tcp", ipAddr)
 		if err != nil {
 			return nil, err
 		}
-		conn, err := reuse.Dial("tcp", laddr.String(), raddr.String())
-		if err != nil {
-			return nil, err
+		log.Logf("laddr: %s, raddr: %s", laddr.String(), raddr.String())
+		d := net.Dialer{
+			LocalAddr: laddr,
+			Timeout:   timeout,
 		}
-		return conn, nil
-		// return net.DialTimeout("tcp", ipAddr, timeout)
-		// conn.SetDeadline(time.Now().Add(timeout))
+		return d.Dial("tcp", raddr.String())
 	}
 
 	conn, err := route.getConn()

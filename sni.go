@@ -137,7 +137,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
-			conn.LocalAddr().String(),
+			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

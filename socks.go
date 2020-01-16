@@ -885,9 +885,8 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 		}
 		fmt.Fprintf(&buf, "%s", host)
 		log.Log("[route]", buf.String())
-
 		cc, err = route.Dial(host,
-			conn.LocalAddr().String(),
+			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
@@ -1702,7 +1701,7 @@ func (h *socks4Handler) handleConnect(conn net.Conn, req *gosocks4.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(addr,
-			conn.LocalAddr().String(),
+			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

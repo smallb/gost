@@ -252,7 +252,7 @@ func (h *httpHandler) handleRequest(conn net.Conn, req *http.Request) {
 		}
 
 		cc, err = route.Dial(host,
-			conn.LocalAddr().String(),
+			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

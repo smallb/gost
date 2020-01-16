@@ -114,7 +114,6 @@ func (tr *udpTransporter) Dial(addr string, options ...DialOption) (net.Conn, er
 	if timeout <= 0 {
 		timeout = DialTimeout
 	}
-
 	return net.DialTimeout("udp", addr, timeout)
 }
 

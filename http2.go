@@ -416,7 +416,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
-			laddr,
+			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
