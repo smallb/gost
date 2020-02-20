@@ -29,7 +29,12 @@ func createTun(cfg TunConfig) (conn net.Conn, itf *net.Interface, err error) {
 		mtu = DefaultMTU
 	}
 
-	cmd := fmt.Sprintf("ifconfig %s inet %s mtu %d up", ifce.Name(), cfg.Addr, mtu)
+	peer := cfg.Peer
+	if peer == "" {
+		peer = ip.String()
+	}
+	cmd := fmt.Sprintf("ifconfig %s inet %s %s mtu %d up",
+		ifce.Name(), cfg.Addr, peer, mtu)
 	log.Log("[tun]", cmd)
 	args := strings.Split(cmd, " ")
 	if er := exec.Command(args[0], args[1:]...).Run(); er != nil {
@@ -37,7 +42,7 @@ func createTun(cfg TunConfig) (conn net.Conn, itf *net.Interface, err error) {
 		return
 	}
 
-	if err = addRoutes(ifce.Name(), cfg.Routes...); err != nil {
+	if err = addTunRoutes(ifce.Name(), cfg.Routes...); err != nil {
 		return
 	}
 
@@ -58,12 +63,12 @@ func createTap(cfg TapConfig) (conn net.Conn, itf *net.Interface, err error) {
 	return
 }
 
-func addRoutes(ifName string, routes ...string) error {
+func addTunRoutes(ifName string, routes ...IPRoute) error {
 	for _, route := range routes {
-		if route == "" {
+		if route.Dest == nil {
 			continue
 		}
-		cmd := fmt.Sprintf("route add -net %s -interface %s", route, ifName)
+		cmd := fmt.Sprintf("route add -net %s -interface %s", route.Dest.String(), ifName)
 		log.Log("[tun]", cmd)
 		args := strings.Split(cmd, " ")
 		if er := exec.Command(args[0], args[1:]...).Run(); er != nil {

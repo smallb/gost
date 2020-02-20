@@ -1,6 +1,7 @@
 package gost
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -39,11 +40,18 @@ func ipProtocol(p waterutil.IPProtocol) string {
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
+type IPRoute struct {
+	Dest    *net.IPNet
+	Gateway net.IP
+}
+
+// TunConfig is the config for TUN device.
 type TunConfig struct {
 	Name    string
 	Addr    string
+	Peer    string // peer addr of point-to-point on MacOS
 	MTU     int
-	Routes  []string
+	Routes  []IPRoute
 	Gateway string
 }
 
@@ -114,12 +122,14 @@ func (l *tunListener) Close() error {
 type tunHandler struct {
 	options *HandlerOptions
 	routes  sync.Map
+	chExit  chan struct{}
 }
 
 // TunHandler creates a handler for tun tunnel.
 func TunHandler(opts ...HandlerOption) Handler {
 	h := &tunHandler{
 		options: &HandlerOptions{},
+		chExit:  make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(h.options)
@@ -141,44 +151,101 @@ func (h *tunHandler) Handle(conn net.Conn) {
 	defer os.Exit(0)
 	defer conn.Close()
 
-	laddr, raddr := h.options.Node.Addr, h.options.Node.Remote
-	var pc net.PacketConn
 	var err error
-	if h.options.TCPMode {
-		if raddr != "" {
-			pc, err = tcpraw.Dial("tcp", raddr)
-		} else {
-			pc, err = tcpraw.Listen("tcp", laddr)
+	var raddr net.Addr
+	if addr := h.options.Node.Remote; addr != "" {
+		raddr, err = net.ResolveUDPAddr("udp", addr)
+		if err != nil {
+			log.Logf("[tun] %s: remote addr: %v", conn.LocalAddr(), err)
+			return
 		}
-	} else {
-		addr, _ := net.ResolveUDPAddr("udp", laddr)
-		pc, err = net.ListenUDP("udp", addr)
-	}
-	if err != nil {
-		log.Logf("[tun] %s: %v", conn.LocalAddr(), err)
-		return
 	}
 
+	var tempDelay time.Duration
+	for {
+		err := func() error {
+			var err error
+			var pc net.PacketConn
+			// fake tcp mode will be ignored when the client specifies a chain.
+			if raddr != nil && !h.options.Chain.IsEmpty() {
+				cc, err := h.options.Chain.DialContext(context.Background(), "udp", raddr.String())
+				if err != nil {
+					return err
+				}
+				pc = cc.(net.PacketConn)
+			} else {
+				if h.options.TCPMode {
+					if raddr != nil {
+						pc, err = tcpraw.Dial("tcp", raddr.String())
+					} else {
+						pc, err = tcpraw.Listen("tcp", h.options.Node.Addr)
+					}
+				} else {
+					laddr, _ := net.ResolveUDPAddr("udp", h.options.Node.Addr)
+					pc, err = net.ListenUDP("udp", laddr)
+				}
+			}
+			if err != nil {
+				return err
+			}
+
+			pc, err = h.initTunnelConn(pc)
+			if err != nil {
+				return err
+			}
+
+			return h.transportTun(conn, pc, raddr)
+		}()
+		if err != nil {
+			log.Logf("[tun] %s: %v", conn.LocalAddr(), err)
+		}
+
+		select {
+		case <-h.chExit:
+			return
+		default:
+		}
+
+		if err != nil {
+			if tempDelay == 0 {
+				tempDelay = 1000 * time.Millisecond
+			} else {
+				tempDelay *= 2
+			}
+			if max := 6 * time.Second; tempDelay > max {
+				tempDelay = max
+			}
+			time.Sleep(tempDelay)
+			continue
+		}
+		tempDelay = 0
+	}
+}
+
+func (h *tunHandler) initTunnelConn(pc net.PacketConn) (net.PacketConn, error) {
 	if len(h.options.Users) > 0 && h.options.Users[0] != nil {
 		passwd, _ := h.options.Users[0].Password()
 		cipher, err := core.PickCipher(h.options.Users[0].Username(), nil, passwd)
 		if err != nil {
-			log.Logf("[tun] %s - %s cipher: %v", conn.LocalAddr(), pc.LocalAddr(), err)
-			return
+			return nil, err
 		}
 		pc = cipher.PacketConn(pc)
 	}
+	return pc, nil
+}
 
-	var ra net.Addr
-	if raddr != "" {
-		ra, err = net.ResolveUDPAddr("udp", raddr)
-		if err != nil {
-			log.Logf("[tun] %s - %s: remote addr: %v", conn.LocalAddr(), pc.LocalAddr(), err)
-			return
+func (h *tunHandler) findRouteFor(dst net.IP) net.Addr {
+	if v, ok := h.routes.Load(ipToTunRouteKey(dst)); ok {
+		return v.(net.Addr)
+	}
+	for _, route := range h.options.IPRoutes {
+		if route.Dest.Contains(dst) && route.Gateway != nil {
+			if v, ok := h.routes.Load(ipToTunRouteKey(route.Gateway)); ok {
+				return v.(net.Addr)
+			}
 		}
 	}
-
-	h.transportTun(conn, pc, ra)
+	return nil
 }
 
 func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.Addr) error {
@@ -192,6 +259,10 @@ func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.A
 
 				n, err := tun.Read(b)
 				if err != nil {
+					select {
+					case h.chExit <- struct{}{}:
+					default:
+					}
 					return err
 				}
 
@@ -232,15 +303,15 @@ func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.A
 					return err
 				}
 
-				var addr net.Addr
-				if v, ok := h.routes.Load(ipToTunRouteKey(dst)); ok {
-					addr = v.(net.Addr)
-				}
+				addr := h.findRouteFor(dst)
 				if addr == nil {
 					log.Logf("[tun] no route for %s -> %s", src, dst)
 					return nil
 				}
 
+				if Debug {
+					log.Logf("[tun] find route: %s -> %s", dst, addr)
+				}
 				if _, err := conn.WriteTo(b[:n], addr); err != nil {
 					return err
 				}
@@ -314,15 +385,19 @@ func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.A
 					log.Logf("[tun] new route: %s -> %s", src, addr)
 				}
 
-				if v, ok := h.routes.Load(ipToTunRouteKey(dst)); ok {
+				if addr := h.findRouteFor(dst); addr != nil {
 					if Debug {
-						log.Logf("[tun] find route: %s -> %s", dst, v)
+						log.Logf("[tun] find route: %s -> %s", dst, addr)
 					}
-					_, err := conn.WriteTo(b[:n], v.(net.Addr))
+					_, err := conn.WriteTo(b[:n], addr)
 					return err
 				}
 
 				if _, err := tun.Write(b[:n]); err != nil {
+					select {
+					case h.chExit <- struct{}{}:
+					default:
+					}
 					return err
 				}
 				return nil
@@ -339,7 +414,6 @@ func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.A
 	if err != nil && err == io.EOF {
 		err = nil
 	}
-	log.Logf("[tun] %s - %s: %v", tun.LocalAddr(), conn.LocalAddr(), err)
 	return err
 }
 
@@ -357,6 +431,7 @@ func etherType(et waterutil.Ethertype) string {
 	return fmt.Sprintf("unknown(%v)", et)
 }
 
+// TapConfig is the config for TAP device.
 type TapConfig struct {
 	Name    string
 	Addr    string
@@ -431,12 +506,14 @@ func (l *tapListener) Close() error {
 type tapHandler struct {
 	options *HandlerOptions
 	routes  sync.Map
+	chExit  chan struct{}
 }
 
 // TapHandler creates a handler for tap tunnel.
 func TapHandler(opts ...HandlerOption) Handler {
 	h := &tapHandler{
 		options: &HandlerOptions{},
+		chExit:  make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(h.options)
@@ -458,44 +535,87 @@ func (h *tapHandler) Handle(conn net.Conn) {
 	defer os.Exit(0)
 	defer conn.Close()
 
-	laddr, raddr := h.options.Node.Addr, h.options.Node.Remote
-	var pc net.PacketConn
 	var err error
-	if h.options.TCPMode {
-		if raddr != "" {
-			pc, err = tcpraw.Dial("tcp", raddr)
-		} else {
-			pc, err = tcpraw.Listen("tcp", laddr)
+	var raddr net.Addr
+	if addr := h.options.Node.Remote; addr != "" {
+		raddr, err = net.ResolveUDPAddr("udp", addr)
+		if err != nil {
+			log.Logf("[tap] %s: remote addr: %v", conn.LocalAddr(), err)
+			return
 		}
-	} else {
-		addr, _ := net.ResolveUDPAddr("udp", laddr)
-		pc, err = net.ListenUDP("udp", addr)
-	}
-	if err != nil {
-		log.Logf("[tap] %s: %v", conn.LocalAddr(), err)
-		return
 	}
 
+	var tempDelay time.Duration
+	for {
+		err := func() error {
+			var err error
+			var pc net.PacketConn
+			// fake tcp mode will be ignored when the client specifies a chain.
+			if raddr != nil && !h.options.Chain.IsEmpty() {
+				cc, err := h.options.Chain.DialContext(context.Background(), "udp", raddr.String())
+				if err != nil {
+					return err
+				}
+				pc = cc.(net.PacketConn)
+			} else {
+				if h.options.TCPMode {
+					if raddr != nil {
+						pc, err = tcpraw.Dial("tcp", raddr.String())
+					} else {
+						pc, err = tcpraw.Listen("tcp", h.options.Node.Addr)
+					}
+				} else {
+					laddr, _ := net.ResolveUDPAddr("udp", h.options.Node.Addr)
+					pc, err = net.ListenUDP("udp", laddr)
+				}
+			}
+			if err != nil {
+				return err
+			}
+
+			pc, err = h.initTunnelConn(pc)
+			if err != nil {
+				return err
+			}
+
+			return h.transportTap(conn, pc, raddr)
+		}()
+		if err != nil {
+			log.Logf("[tap] %s: %v", conn.LocalAddr(), err)
+		}
+
+		select {
+		case <-h.chExit:
+			return
+		default:
+		}
+
+		if err != nil {
+			if tempDelay == 0 {
+				tempDelay = 1000 * time.Millisecond
+			} else {
+				tempDelay *= 2
+			}
+			if max := 6 * time.Second; tempDelay > max {
+				tempDelay = max
+			}
+			time.Sleep(tempDelay)
+			continue
+		}
+		tempDelay = 0
+	}
+}
+
+func (h *tapHandler) initTunnelConn(pc net.PacketConn) (net.PacketConn, error) {
 	if len(h.options.Users) > 0 && h.options.Users[0] != nil {
 		passwd, _ := h.options.Users[0].Password()
 		cipher, err := core.PickCipher(h.options.Users[0].Username(), nil, passwd)
 		if err != nil {
-			log.Logf("[tap] %s - %s cipher: %v", conn.LocalAddr(), pc.LocalAddr(), err)
-			return
+			return nil, err
 		}
 		pc = cipher.PacketConn(pc)
 	}
-
-	var ra net.Addr
-	if raddr != "" {
-		ra, err = net.ResolveUDPAddr("udp", raddr)
-		if err != nil {
-			log.Logf("[tap] %s - %s: remote addr: %v", conn.LocalAddr(), pc.LocalAddr(), err)
-			return
-		}
-	}
-
-	h.transportTap(conn, pc, ra)
+	return pc, nil
 }
 
 func (h *tapHandler) transportTap(tap net.Conn, conn net.PacketConn, raddr net.Addr) error {
@@ -509,6 +629,10 @@ func (h *tapHandler) transportTap(tap net.Conn, conn net.PacketConn, raddr net.A
 
 				n, err := tap.Read(b)
 				if err != nil {
+					select {
+					case h.chExit <- struct{}{}:
+					default:
+					}
 					return err
 				}
 
@@ -613,6 +737,10 @@ func (h *tapHandler) transportTap(tap net.Conn, conn net.PacketConn, raddr net.A
 				}
 
 				if _, err := tap.Write(b[:n]); err != nil {
+					select {
+					case h.chExit <- struct{}{}:
+					default:
+					}
 					return err
 				}
 				return nil
@@ -629,7 +757,6 @@ func (h *tapHandler) transportTap(tap net.Conn, conn net.PacketConn, raddr net.A
 	if err != nil && err == io.EOF {
 		err = nil
 	}
-	log.Logf("[tap] %s - %s: %v", tap.LocalAddr(), conn.LocalAddr(), err)
 	return err
 }
 
@@ -670,6 +797,7 @@ func (c *tunTapConn) SetWriteDeadline(t time.Time) error {
 	return &net.OpError{Op: "set", Net: "tuntap", Source: nil, Addr: nil, Err: errors.New("deadline not supported")}
 }
 
+// IsIPv6Multicast reports whether the address addr is an IPv6 multicast address.
 func IsIPv6Multicast(addr net.HardwareAddr) bool {
 	return addr[0] == 0x33 && addr[1] == 0x33
 }

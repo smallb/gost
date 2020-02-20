@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-log/log"
 
-	reuse "github.com/libp2p/go-reuseport"
 	smux "gopkg.in/xtaci/smux.v1"
 )
 
@@ -76,7 +75,7 @@ func (tr *mtlsTransporter) Dial(addr string, options ...DialOption) (conn net.Co
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr, "")
+			conn, err = opts.Chain.Dial(addr)
 		}
 		if err != nil {
 			return
@@ -159,7 +158,7 @@ func TLSListener(addr string, config *tls.Config) (Listener, error) {
 	if config == nil {
 		config = DefaultTLSConfig
 	}
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +178,7 @@ func MTLSListener(addr string, config *tls.Config) (Listener, error) {
 	if config == nil {
 		config = DefaultTLSConfig
 	}
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package gost
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/libp2p/go-reuseport"
 	"golang.org/x/net/http2"
 )
 
@@ -34,7 +34,16 @@ func HTTP2Connector(user *url.Userinfo) Connector {
 	return &http2Connector{User: user}
 }
 
-func (c *http2Connector) Connect(conn net.Conn, addr string, options ...ConnectOption) (net.Conn, error) {
+func (c *http2Connector) Connect(conn net.Conn, address string, options ...ConnectOption) (net.Conn, error) {
+	return c.ConnectContext(context.Background(), conn, "tcp", address, options...)
+}
+
+func (c *http2Connector) ConnectContext(ctx context.Context, conn net.Conn, network, address string, options ...ConnectOption) (net.Conn, error) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return nil, fmt.Errorf("%s unsupported", network)
+	}
+
 	opts := &ConnectOptions{}
 	for _, option := range options {
 		option(opts)
@@ -58,7 +67,7 @@ func (c *http2Connector) Connect(conn net.Conn, addr string, options ...ConnectO
 		ProtoMajor:    2,
 		ProtoMinor:    0,
 		Body:          pr,
-		Host:          addr,
+		Host:          address,
 		ContentLength: -1,
 	}
 	req.Header.Set("User-Agent", ua)
@@ -98,7 +107,7 @@ func (c *http2Connector) Connect(conn net.Conn, addr string, options ...ConnectO
 		closed: make(chan struct{}),
 	}
 
-	hc.remoteAddr, _ = net.ResolveTCPAddr("tcp", addr)
+	hc.remoteAddr, _ = net.ResolveTCPAddr("tcp", address)
 	hc.localAddr, _ = net.ResolveTCPAddr("tcp", cc.addr)
 
 	return hc, nil
@@ -134,7 +143,7 @@ func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, 
 	if !ok {
 		// NOTE: There is no real connection to the HTTP2 server at this moment.
 		// So we try to connect to the server to check the server health.
-		conn, err := opts.Chain.Dial(addr, "")
+		conn, err := opts.Chain.Dial(addr)
 		if err != nil {
 			log.Log("http2 dial:", addr, err)
 			return nil, err
@@ -148,7 +157,7 @@ func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, 
 		transport := http2.Transport{
 			TLSClientConfig: tr.tlsConfig,
 			DialTLS: func(network, adr string, cfg *tls.Config) (net.Conn, error) {
-				conn, err := opts.Chain.Dial(adr, "")
+				conn, err := opts.Chain.Dial(adr)
 				if err != nil {
 					return nil, err
 				}
@@ -226,7 +235,7 @@ func (tr *h2Transporter) Dial(addr string, options ...DialOption) (net.Conn, err
 		transport := http2.Transport{
 			TLSClientConfig: tr.tlsConfig,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				conn, err := opts.Chain.Dial(addr, "")
+				conn, err := opts.Chain.Dial(addr)
 				if err != nil {
 					return nil, err
 				}
@@ -349,7 +358,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 		u += "@"
 	}
 	log.Logf("[http2] %s%s -> %s -> %s",
-		u, r.RemoteAddr, laddr, host)
+		u, r.RemoteAddr, h.options.Node.String(), host)
 
 	if Debug {
 		dump, _ := httputil.DumpRequest(r, false)
@@ -416,7 +425,6 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
-			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
@@ -598,7 +606,7 @@ func HTTP2Listener(addr string, config *tls.Config) (Listener, error) {
 	}
 	l.server = server
 
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -668,7 +676,7 @@ type h2Listener struct {
 
 // H2Listener creates a Listener for HTTP2 h2 tunnel server.
 func H2Listener(addr string, config *tls.Config, path string) (Listener, error) {
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -695,7 +703,7 @@ func H2Listener(addr string, config *tls.Config, path string) (Listener, error) 
 
 // H2CListener creates a Listener for HTTP2 h2c tunnel server.
 func H2CListener(addr string, path string) (Listener, error) {
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

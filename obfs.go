@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/libp2p/go-reuseport"
 
 	pt "git.torproject.org/pluggable-transports/goptlib.git"
 	"git.torproject.org/pluggable-transports/obfs4.git/transports/base"
@@ -378,7 +377,7 @@ type obfs4Listener struct {
 
 // Obfs4Listener creates a Listener for obfs4 server.
 func Obfs4Listener(addr string) (Listener, error) {
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

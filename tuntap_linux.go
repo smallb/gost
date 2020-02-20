@@ -74,9 +74,13 @@ func createTun(cfg TunConfig) (conn net.Conn, itf *net.Interface, err error) {
 }
 
 func createTap(cfg TapConfig) (conn net.Conn, itf *net.Interface, err error) {
-	ip, ipNet, err := net.ParseCIDR(cfg.Addr)
-	if err != nil {
-		return
+	var ip net.IP
+	var ipNet *net.IPNet
+	if cfg.Addr != "" {
+		ip, ipNet, err = net.ParseCIDR(cfg.Addr)
+		if err != nil {
+			return
+		}
 	}
 
 	ifce, err := water.New(water.Config{
@@ -106,11 +110,13 @@ func createTap(cfg TapConfig) (conn net.Conn, itf *net.Interface, err error) {
 		return
 	}
 
-	cmd = fmt.Sprintf("ip address add %s dev %s", cfg.Addr, ifce.Name())
-	log.Log("[tap]", cmd)
-	if er := link.SetLinkIp(ip, ipNet); er != nil {
-		err = fmt.Errorf("%s: %v", cmd, er)
-		return
+	if cfg.Addr != "" {
+		cmd = fmt.Sprintf("ip address add %s dev %s", cfg.Addr, ifce.Name())
+		log.Log("[tap]", cmd)
+		if er := link.SetLinkIp(ip, ipNet); er != nil {
+			err = fmt.Errorf("%s: %v", cmd, er)
+			return
+		}
 	}
 
 	cmd = fmt.Sprintf("ip link set dev %s up", ifce.Name())
@@ -136,14 +142,14 @@ func createTap(cfg TapConfig) (conn net.Conn, itf *net.Interface, err error) {
 	return
 }
 
-func addTunRoutes(ifName string, routes ...string) error {
+func addTunRoutes(ifName string, routes ...IPRoute) error {
 	for _, route := range routes {
-		if route == "" {
+		if route.Dest == nil {
 			continue
 		}
-		cmd := fmt.Sprintf("ip route add %s dev %s", route, ifName)
+		cmd := fmt.Sprintf("ip route add %s dev %s", route.Dest.String(), ifName)
 		log.Logf("[tun] %s", cmd)
-		if err := netlink.AddRoute(route, "", "", ifName); err != nil {
+		if err := netlink.AddRoute(route.Dest.String(), "", "", ifName); err != nil {
 			return fmt.Errorf("%s: %v", cmd, err)
 		}
 	}

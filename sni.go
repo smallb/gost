@@ -5,6 +5,7 @@ package gost
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -29,8 +30,17 @@ func SNIConnector(host string) Connector {
 	return &sniConnector{host: host}
 }
 
-func (c *sniConnector) Connect(conn net.Conn, addr string, options ...ConnectOption) (net.Conn, error) {
-	return &sniClientConn{addr: addr, host: c.host, Conn: conn}, nil
+func (c *sniConnector) Connect(conn net.Conn, address string, options ...ConnectOption) (net.Conn, error) {
+	return c.ConnectContext(context.Background(), conn, "tcp", address, options...)
+}
+
+func (c *sniConnector) ConnectContext(ctx context.Context, conn net.Conn, network, address string, options ...ConnectOption) (net.Conn, error) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return nil, fmt.Errorf("%s unsupported", network)
+	}
+
+	return &sniClientConn{addr: address, host: c.host, Conn: conn}, nil
 }
 
 type sniHandler struct {
@@ -96,7 +106,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 	host = net.JoinHostPort(host, sport)
 
 	log.Logf("[sni] %s -> %s -> %s",
-		conn.RemoteAddr(), conn.LocalAddr().String(), host)
+		conn.RemoteAddr(), h.options.Node.String(), host)
 
 	if !Can("tcp", host, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[sni] %s -> %s : Unauthorized to tcp connect to %s",
@@ -137,7 +147,6 @@ func (h *sniHandler) Handle(conn net.Conn) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
-			h.options.Addr,
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

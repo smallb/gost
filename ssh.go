@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-log/log"
 	"golang.org/x/crypto/ssh"
-	reuse "github.com/libp2p/go-reuseport"
 )
 
 // Applicable SSH Request types for Port Forwarding - RFC 4254 7.X
@@ -40,6 +39,15 @@ func SSHDirectForwardConnector() Connector {
 }
 
 func (c *sshDirectForwardConnector) Connect(conn net.Conn, raddr string, options ...ConnectOption) (net.Conn, error) {
+	return c.ConnectContext(context.Background(), conn, "tcp", raddr, options...)
+}
+
+func (c *sshDirectForwardConnector) ConnectContext(ctx context.Context, conn net.Conn, network, raddr string, options ...ConnectOption) (net.Conn, error) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return nil, fmt.Errorf("%s unsupported", network)
+	}
+
 	opts := &ConnectOptions{}
 	for _, option := range options {
 		option(opts)
@@ -74,7 +82,16 @@ func SSHRemoteForwardConnector() Connector {
 	return &sshRemoteForwardConnector{}
 }
 
-func (c *sshRemoteForwardConnector) Connect(conn net.Conn, addr string, options ...ConnectOption) (net.Conn, error) {
+func (c *sshRemoteForwardConnector) Connect(conn net.Conn, address string, options ...ConnectOption) (net.Conn, error) {
+	return c.ConnectContext(context.Background(), conn, "tcp", address, options...)
+}
+
+func (c *sshRemoteForwardConnector) ConnectContext(ctx context.Context, conn net.Conn, network, address string, options ...ConnectOption) (net.Conn, error) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return nil, fmt.Errorf("%s unsupported", network)
+	}
+
 	cc, ok := conn.(*sshNopConn) // TODO: this is an ugly type assertion, need to find a better solution.
 	if !ok {
 		return nil, errors.New("ssh: wrong connection type")
@@ -88,10 +105,10 @@ func (c *sshRemoteForwardConnector) Connect(conn net.Conn, addr string, options 
 			if cc.session == nil || cc.session.client == nil {
 				return
 			}
-			if strings.HasPrefix(addr, ":") {
-				addr = "0.0.0.0" + addr
+			if strings.HasPrefix(address, ":") {
+				address = "0.0.0.0" + address
 			}
-			ln, err := cc.session.client.Listen("tcp", addr)
+			ln, err := cc.session.client.Listen("tcp", address)
 			if err != nil {
 				return
 			}
@@ -100,7 +117,7 @@ func (c *sshRemoteForwardConnector) Connect(conn net.Conn, addr string, options 
 			for {
 				rc, err := ln.Accept()
 				if err != nil {
-					log.Logf("[ssh-rtcp] %s <-> %s accpet : %s", ln.Addr(), addr, err)
+					log.Logf("[ssh-rtcp] %s <-> %s accpet : %s", ln.Addr(), address, err)
 					return
 				}
 				// log.Log("[ssh-rtcp] accept", rc.LocalAddr(), rc.RemoteAddr())
@@ -108,7 +125,7 @@ func (c *sshRemoteForwardConnector) Connect(conn net.Conn, addr string, options 
 				case cc.session.connChan <- rc:
 				default:
 					rc.Close()
-					log.Logf("[ssh-rtcp] %s - %s: connection queue is full", ln.Addr(), addr)
+					log.Logf("[ssh-rtcp] %s - %s: connection queue is full", ln.Addr(), address)
 				}
 			}
 		}()
@@ -152,7 +169,7 @@ func (tr *sshForwardTransporter) Dial(addr string, options ...DialOption) (conn 
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr, "")
+			conn, err = opts.Chain.Dial(addr)
 		}
 		if err != nil {
 			return
@@ -261,7 +278,7 @@ func (tr *sshTunnelTransporter) Dial(addr string, options ...DialOption) (conn n
 		if opts.Chain == nil {
 			conn, err = net.DialTimeout("tcp", addr, timeout)
 		} else {
-			conn, err = opts.Chain.Dial(addr, "")
+			conn, err = opts.Chain.Dial(addr)
 		}
 		if err != nil {
 			return
@@ -561,7 +578,6 @@ func (h *sshForwardHandler) directPortForwardChannel(channel ssh.Channel, raddr 
 	}
 
 	conn, err := h.options.Chain.Dial(raddr,
-		h.options.Node.Addr,
 		RetryChainOption(h.options.Retries),
 		TimeoutChainOption(h.options.Timeout),
 		HostsChainOption(h.options.Hosts),
@@ -596,7 +612,7 @@ func (h *sshForwardHandler) tcpipForwardRequest(sshConn ssh.Conn, req *ssh.Reque
 		return
 	}
 
-	ln, err := reuse.Listen("tcp", addr) //tie to the client connection
+	ln, err := net.Listen("tcp", addr) //tie to the client connection
 	if err != nil {
 		log.Log("[ssh-rtcp]", err)
 		req.Reply(false, nil)
@@ -679,7 +695,7 @@ type sshTunnelListener struct {
 
 // SSHTunnelListener creates a Listener for SSH tunnel server.
 func SSHTunnelListener(addr string, config *SSHConfig) (Listener, error) {
-	ln, err := reuse.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

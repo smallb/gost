@@ -23,7 +23,6 @@ var (
 )
 
 func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	gost.SetLogger(&gost.LogLogger{})
 
 	var (
@@ -34,7 +33,6 @@ func init() {
 	flag.Var(&baseCfg.route.ServeNodes, "L", "listen address, can listen on multiple ports (required)")
 	flag.StringVar(&configureFile, "C", "", "configure file")
 	flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
-	flag.BoolVar(&baseCfg.ReusePort, "R", false, "enable reuse port")
 	flag.BoolVar(&printVersion, "V", false, "print version")
 	if pprofEnabled {
 		flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
@@ -54,7 +52,6 @@ func init() {
 			os.Exit(1)
 		}
 	}
-
 	if flag.NFlag() == 0 {
 		flag.PrintDefaults()
 		os.Exit(0)
