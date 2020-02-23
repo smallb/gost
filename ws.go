@@ -387,7 +387,7 @@ func WSListener(addr string, options *WSOptions) (Listener, error) {
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
-	ln, err := net.ListenTCP("tcp", tcpAddr)
+	ln, err := ReuseportListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -485,7 +485,7 @@ func MWSListener(addr string, options *WSOptions) (Listener, error) {
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
-	ln, err := net.ListenTCP("tcp", tcpAddr)
+	ln, err := ReuseportListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +611,7 @@ func WSSListener(addr string, tlsConfig *tls.Config, options *WSOptions) (Listen
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
-	ln, err := net.ListenTCP("tcp", tcpAddr)
+	ln, err := ReuseportListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -677,7 +677,7 @@ func MWSSListener(addr string, tlsConfig *tls.Config, options *WSOptions) (Liste
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
-	ln, err := net.ListenTCP("tcp", tcpAddr)
+	ln, err := ReuseportListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return nil, err
 	}

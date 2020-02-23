@@ -158,7 +158,7 @@ func TLSListener(addr string, config *tls.Config) (Listener, error) {
 	if config == nil {
 		config = DefaultTLSConfig
 	}
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func MTLSListener(addr string, config *tls.Config) (Listener, error) {
 	if config == nil {
 		config = DefaultTLSConfig
 	}
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

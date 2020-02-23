@@ -182,7 +182,7 @@ func (h *tunHandler) Handle(conn net.Conn) {
 					}
 				} else {
 					laddr, _ := net.ResolveUDPAddr("udp", h.options.Node.Addr)
-					pc, err = net.ListenUDP("udp", laddr)
+					pc, err = ReuseportListenUDP("udp", laddr)
 				}
 			}
 			if err != nil {
@@ -566,7 +566,7 @@ func (h *tapHandler) Handle(conn net.Conn) {
 					}
 				} else {
 					laddr, _ := net.ResolveUDPAddr("udp", h.options.Node.Addr)
-					pc, err = net.ListenUDP("udp", laddr)
+					pc, err = ReuseportListenUDP("udp", laddr)
 				}
 			}
 			if err != nil {

@@ -21,8 +21,9 @@ var (
 
 type baseConfig struct {
 	route
-	Routes []route
-	Debug  bool
+	Routes    []route
+	Debug     bool
+	Reuseport bool
 }
 
 func parseBaseConfig(s string) (*baseConfig, error) {

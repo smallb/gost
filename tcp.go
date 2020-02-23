@@ -44,7 +44,7 @@ func TCPListener(addr string) (Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := net.ListenTCP("tcp", laddr)
+	ln, err := ReuseportListenTCP("tcp", laddr)
 	if err != nil {
 		return nil, err
 	}

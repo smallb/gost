@@ -377,7 +377,7 @@ type obfs4Listener struct {
 
 // Obfs4Listener creates a Listener for obfs4 server.
 func Obfs4Listener(addr string) (Listener, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

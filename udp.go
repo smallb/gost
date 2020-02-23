@@ -62,7 +62,7 @@ func UDPListener(addr string, cfg *UDPListenConfig) (Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := net.ListenUDP("udp", laddr)
+	ln, err := ReuseportListenUDP("udp", laddr)
 	if err != nil {
 		return nil, err
 	}

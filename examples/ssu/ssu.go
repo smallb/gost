@@ -20,7 +20,7 @@ func ssuClient() {
 		log.Fatal(err)
 	}
 	laddr, _ := net.ResolveUDPAddr("udp", ":10800")
-	conn, err := net.ListenUDP("udp", laddr)
+	conn, err := ReuseportListenUDP("udp", laddr)
 	if err != nil {
 		log.Fatal(err)
 	}

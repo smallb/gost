@@ -351,7 +351,7 @@ func TCPRemoteForwardListener(addr string, chain *Chain) (Listener, error) {
 	}
 
 	if !ln.isChainValid() {
-		ln.ln, err = net.Listen("tcp", ln.addr.String())
+		ln.ln, err = ReuseportListen("tcp", ln.addr.String())
 		return ln, err
 	}
 
@@ -718,7 +718,7 @@ func (l *udpRemoteForwardListener) connect() (conn net.PacketConn, err error) {
 			}
 		} else {
 			var uc *net.UDPConn
-			uc, err = net.ListenUDP("udp", l.addr.(*net.UDPAddr))
+			uc, err = ReuseportListenUDP("udp", l.addr.(*net.UDPAddr))
 			if err == nil {
 				l.addr = uc.LocalAddr()
 				conn = uc

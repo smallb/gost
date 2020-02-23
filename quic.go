@@ -65,7 +65,7 @@ func (tr *quicTransporter) Dial(addr string, options ...DialOption) (conn net.Co
 	session, ok := tr.sessions[addr]
 	if !ok {
 		var cc *net.UDPConn
-		cc, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+		cc, err = ReuseportListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 		if err != nil {
 			return
 		}
@@ -196,7 +196,7 @@ func QUICListener(addr string, config *QUICConfig) (Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	lconn, err := net.ListenUDP("udp", udpAddr)
+	lconn, err := ReuseportListenUDP("udp", udpAddr)
 	if err != nil {
 		return nil, err
 	}

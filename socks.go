@@ -1018,7 +1018,7 @@ func (h *socks5Handler) handleBind(conn net.Conn, req *gosocks5.Request) {
 
 func (h *socks5Handler) bindOn(conn net.Conn, addr string) {
 	bindAddr, _ := net.ResolveTCPAddr("tcp", addr)
-	ln, err := net.ListenTCP("tcp", bindAddr) // strict mode: if the port already in use, it will return error
+	ln, err := ReuseportListenTCP("tcp", bindAddr) // strict mode: if the port already in use, it will return error
 	if err != nil {
 		log.Logf("[socks5-bind] %s -> %s : %s",
 			conn.RemoteAddr(), conn.LocalAddr(), err)
@@ -1124,7 +1124,7 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 		return
 	}
 
-	relay, err := net.ListenUDP("udp", nil)
+	relay, err := ReuseportListenUDP("udp", nil)
 	if err != nil {
 		log.Logf("[socks5-udp] %s -> %s : %s", conn.RemoteAddr(), conn.LocalAddr(), err)
 		reply := gosocks5.NewReply(gosocks5.Failure, nil)
@@ -1150,7 +1150,7 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 
 	// serve as standard socks5 udp relay local <-> remote
 	if h.options.Chain.IsEmpty() {
-		peer, er := net.ListenUDP("udp", nil)
+		peer, er := ReuseportListenUDP("udp", nil)
 		if er != nil {
 			log.Logf("[socks5-udp] %s -> %s : %s", conn.RemoteAddr(), conn.LocalAddr(), er)
 			return
@@ -1405,7 +1405,7 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 		}
 
 		bindAddr, _ := net.ResolveUDPAddr("udp", addr)
-		uc, err := net.ListenUDP("udp", bindAddr)
+		uc, err := ReuseportListenUDP("udp", bindAddr)
 		if err != nil {
 			log.Logf("[socks5] udp-tun %s -> %s : %s", conn.RemoteAddr(), req.Addr, err)
 			return
@@ -1557,7 +1557,7 @@ func (h *socks5Handler) handleMuxBind(conn net.Conn, req *gosocks5.Request) {
 
 func (h *socks5Handler) muxBindOn(conn net.Conn, addr string) {
 	bindAddr, _ := net.ResolveTCPAddr("tcp", addr)
-	ln, err := net.ListenTCP("tcp", bindAddr) // strict mode: if the port already in use, it will return error
+	ln, err := ReuseportListenTCP("tcp", bindAddr) // strict mode: if the port already in use, it will return error
 	if err != nil {
 		log.Logf("[socks5] mbind %s -> %s : %s", conn.RemoteAddr(), addr, err)
 		gosocks5.NewReply(gosocks5.Failure, nil).Write(conn)

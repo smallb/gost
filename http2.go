@@ -606,7 +606,7 @@ func HTTP2Listener(addr string, config *tls.Config) (Listener, error) {
 	}
 	l.server = server
 
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +676,7 @@ type h2Listener struct {
 
 // H2Listener creates a Listener for HTTP2 h2 tunnel server.
 func H2Listener(addr string, config *tls.Config, path string) (Listener, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +703,7 @@ func H2Listener(addr string, config *tls.Config, path string) (Listener, error) 
 
 // H2CListener creates a Listener for HTTP2 h2c tunnel server.
 func H2CListener(addr string, path string) (Listener, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

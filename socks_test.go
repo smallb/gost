@@ -416,7 +416,7 @@ func socks5MuxBindRoundtrip(t *testing.T, targetURL string, data []byte) (err er
 		return
 	}
 
-	l, err := net.Listen("tcp", "")
+	l, err := ReuseportListen("tcp", "")
 	if err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func BenchmarkSOCKS5MuxBind(b *testing.B) {
 		b.Error(err)
 	}
 
-	l, err := net.Listen("tcp", "")
+	l, err := ReuseportListen("tcp", "")
 	if err != nil {
 		b.Error(err)
 	}

@@ -154,7 +154,7 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 		switch network {
 		case "udp", "udp4", "udp6":
 			if address == "" {
-				return net.ListenUDP(network, nil)
+				return ReuseportListenUDP(network, nil)
 			}
 		default:
 		}

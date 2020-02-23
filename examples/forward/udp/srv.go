@@ -25,7 +25,7 @@ func udpEchoServer() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	conn, err := net.ListenUDP("udp", addr)
+	conn, err := ReuseportListenUDP("udp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}

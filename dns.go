@@ -321,7 +321,7 @@ type dohServer struct {
 }
 
 func (s *dohServer) ListenAndServe() error {
-	ln, err := net.Listen("tcp", s.addr)
+	ln, err := ReuseportListen("tcp", s.addr)
 	if err != nil {
 		return err
 	}

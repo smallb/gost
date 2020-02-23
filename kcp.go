@@ -146,7 +146,7 @@ func (tr *kcpTransporter) Dial(addr string, options ...DialOption) (conn net.Con
 				PacketConn: pc,
 			}
 		} else {
-			conn, err = net.ListenUDP("udp", nil)
+			conn, err = ReuseportListenUDP("udp", nil)
 			if err != nil {
 				return nil, err
 			}

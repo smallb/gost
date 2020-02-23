@@ -33,6 +33,7 @@ func init() {
 	flag.Var(&baseCfg.route.ServeNodes, "L", "listen address, can listen on multiple ports (required)")
 	flag.StringVar(&configureFile, "C", "", "configure file")
 	flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
+	flag.BoolVar(&baseCfg.Reuseport, "R", false, "enable Reuseport")
 	flag.BoolVar(&printVersion, "V", false, "print version")
 	if pprofEnabled {
 		flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
@@ -94,6 +95,7 @@ func main() {
 
 func start() error {
 	gost.Debug = baseCfg.Debug
+	gost.Reuseport = baseCfg.Reuseport
 
 	var routers []router
 	rts, err := baseCfg.route.GenRouters()

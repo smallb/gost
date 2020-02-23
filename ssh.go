@@ -612,7 +612,7 @@ func (h *sshForwardHandler) tcpipForwardRequest(sshConn ssh.Conn, req *ssh.Reque
 		return
 	}
 
-	ln, err := net.Listen("tcp", addr) //tie to the client connection
+	ln, err := ReuseportListen("tcp", addr) //tie to the client connection
 	if err != nil {
 		log.Log("[ssh-rtcp]", err)
 		req.Reply(false, nil)
@@ -695,7 +695,7 @@ type sshTunnelListener struct {
 
 // SSHTunnelListener creates a Listener for SSH tunnel server.
 func SSHTunnelListener(addr string, config *SSHConfig) (Listener, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := ReuseportListen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
