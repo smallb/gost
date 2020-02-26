@@ -133,6 +133,7 @@ func (h *tcpDirectForwardHandler) Handle(conn net.Conn) {
 
 		log.Logf("[tcp] %s - %s", conn.RemoteAddr(), node.Addr)
 		cc, err = h.options.Chain.Dial(node.Addr,
+			LocalAddrChainOption(conn.LocalAddr().String()),
 			RetryChainOption(h.options.Retries),
 			TimeoutChainOption(h.options.Timeout),
 		)

@@ -169,6 +169,7 @@ func (h *shadowHandler) Handle(conn net.Conn) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			LocalAddrChainOption(conn.LocalAddr().String()),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),

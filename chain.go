@@ -3,6 +3,7 @@ package gost
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -151,17 +152,36 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 	}
 
 	if route.IsEmpty() {
+		host, _, err := net.SplitHostPort(options.LocalAddr)
+		if err != nil {
+			return nil, err
+		}
+		ip := net.ParseIP(host)
+		if ip.IsLoopback() {
+			host = ""
+		}
+		host = net.JoinHostPort(host, "0")
 		switch network {
 		case "udp", "udp4", "udp6":
 			if address == "" {
-				return ReuseportListenUDP(network, nil)
+				laddr, err := net.ResolveUDPAddr(network, host)
+				if err != nil {
+					return nil, err
+				}
+				return ReuseportListenUDP(network, laddr)
 			}
 		default:
 		}
-		d := &net.Dialer{
-			Timeout: timeout,
-			// LocalAddr: laddr, // TODO: optional local address
+
+		laddr, err := net.ResolveTCPAddr(network, host)
+		if err != nil {
+			return nil, err
 		}
+		d := &net.Dialer{
+			Timeout:   timeout,
+			LocalAddr: laddr,
+		}
+		fmt.Println("11111111", address, ipAddr, laddr)
 		return d.DialContext(ctx, network, ipAddr)
 	}
 
@@ -323,10 +343,11 @@ func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
 
 // ChainOptions holds options for Chain.
 type ChainOptions struct {
-	Retries  int
-	Timeout  time.Duration
-	Hosts    *Hosts
-	Resolver Resolver
+	Retries   int
+	Timeout   time.Duration
+	Hosts     *Hosts
+	Resolver  Resolver
+	LocalAddr string
 }
 
 // ChainOption allows a common way to set chain options.
@@ -357,5 +378,12 @@ func HostsChainOption(hosts *Hosts) ChainOption {
 func ResolverChainOption(resolver Resolver) ChainOption {
 	return func(opts *ChainOptions) {
 		opts.Resolver = resolver
+	}
+}
+
+// LocalAddrChainOption specifies the localAddr used by Chain.Dial.
+func LocalAddrChainOption(localAddr string) ChainOption {
+	return func(opts *ChainOptions) {
+		opts.LocalAddr = localAddr
 	}
 }

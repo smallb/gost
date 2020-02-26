@@ -44,7 +44,11 @@ func ReuseportListen(network string, address string) (net.Listener, error) {
 // chosen.
 func ReuseportListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
 	if Reuseport {
-		conn, err := reuseport.ListenPacket(network, laddr.String())
+		strAddr := ""
+		if nil != laddr {
+			strAddr = laddr.String()
+		}
+		conn, err := reuseport.ListenPacket(network, strAddr)
 		return conn.(*net.UDPConn), err
 	}
 	return net.ListenUDP(network, laddr)
@@ -61,7 +65,11 @@ func ReuseportListenUDP(network string, laddr *net.UDPAddr) (*net.UDPConn, error
 // chosen.
 func ReuseportListenTCP(network string, laddr *net.TCPAddr) (*net.TCPListener, error) {
 	if Reuseport {
-		conn, err := reuseport.Listen(network, laddr.String())
+		strAddr := ""
+		if nil != laddr {
+			strAddr = laddr.String()
+		}
+		conn, err := reuseport.Listen(network, strAddr)
 		return conn.(*net.TCPListener), err
 	}
 	return net.ListenTCP(network, laddr)

@@ -940,6 +940,7 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(host,
+			LocalAddrChainOption(conn.LocalAddr().String()),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
@@ -1398,6 +1399,8 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 	// serve tunnel udp, tunnel <-> remote, handle tunnel udp request
 	if h.options.Chain.IsEmpty() {
 		addr := req.Addr.String()
+		addr, _, _ = net.SplitHostPort(conn.LocalAddr().String())
+		addr = net.JoinHostPort(addr, "0")
 
 		if !Can("rudp", addr, h.options.Whitelist, h.options.Blacklist) {
 			log.Logf("[socks5] udp-tun Unauthorized to udp bind to %s", addr)
@@ -1755,6 +1758,7 @@ func (h *socks4Handler) handleConnect(conn net.Conn, req *gosocks4.Request) {
 		log.Log("[route]", buf.String())
 
 		cc, err = route.Dial(addr,
+			LocalAddrChainOption(conn.LocalAddr().String()),
 			TimeoutChainOption(h.options.Timeout),
 			HostsChainOption(h.options.Hosts),
 			ResolverChainOption(h.options.Resolver),
