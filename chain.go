@@ -3,7 +3,6 @@ package gost
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
@@ -181,7 +180,6 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 			Timeout:   timeout,
 			LocalAddr: laddr,
 		}
-		fmt.Println("11111111", address, ipAddr, laddr)
 		return d.DialContext(ctx, network, ipAddr)
 	}
 

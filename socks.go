@@ -1398,9 +1398,12 @@ func (h *socks5Handler) tunnelClientUDP(uc *net.UDPConn, cc net.Conn) (err error
 func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 	// serve tunnel udp, tunnel <-> remote, handle tunnel udp request
 	if h.options.Chain.IsEmpty() {
-		addr := req.Addr.String()
-		addr, _, _ = net.SplitHostPort(conn.LocalAddr().String())
-		addr = net.JoinHostPort(addr, "0")
+		addr, _, _ := net.SplitHostPort(conn.LocalAddr().String())
+		if "" == addr {
+			addr = req.Addr.String()
+		} else {
+			addr = net.JoinHostPort(addr, "0")
+		}
 
 		if !Can("rudp", addr, h.options.Whitelist, h.options.Blacklist) {
 			log.Logf("[socks5] udp-tun Unauthorized to udp bind to %s", addr)
