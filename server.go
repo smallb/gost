@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/go-log/log"
+	"github.com/juju/ratelimit"
 )
+
+var limitBucket *ratelimit.Bucket
 
 // Accepter represents a network endpoint that can accept connection from peer.
 type Accepter interface {
@@ -102,6 +105,13 @@ type Listener interface {
 	net.Listener
 }
 
+// LimitFLow (kb)
+func LimitFLow(limit int64) {
+	if 0 < limit {
+		limitBucket = ratelimit.NewBucketWithRate((float64)(limit*1024), limit*1024)
+	}
+}
+
 func transport(rw1, rw2 io.ReadWriter) error {
 	errc := make(chan error, 1)
 	go func() {
@@ -123,6 +133,10 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	buf := lPool.Get().([]byte)
 	defer lPool.Put(buf)
 
-	_, err := io.CopyBuffer(dst, src, buf)
+	if nil == limitBucket {
+		_, err := io.CopyBuffer(dst, src, buf)
+		return err
+	}
+	_, err := io.CopyBuffer(dst, ratelimit.Reader(src, limitBucket), buf)
 	return err
 }
