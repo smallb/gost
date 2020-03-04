@@ -34,6 +34,7 @@ func parseCommand(cmd string) error {
 
 	var (
 		printVersion bool
+		Limit        int64
 	)
 
 	baseCfg.route.ChainNodes = baseCfg.route.ChainNodes[0:0]
@@ -47,6 +48,7 @@ func parseCommand(cmd string) error {
 		flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
 		flag.BoolVar(&baseCfg.Reuseport, "R", false, "enable Reuseport")
 		flag.BoolVar(&printVersion, "V", false, "print version")
+		flag.Int64Var(&Limit, "M", 0, "limit flow (kb)")
 		if pprofEnabled {
 			flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
 		}
@@ -76,6 +78,8 @@ func parseCommand(cmd string) error {
 		flag.PrintDefaults()
 		return errors.New("flag.NFlag() == 0")
 	}
+
+	// gost.LimitFlow(Limit)
 	return nil
 }
 
