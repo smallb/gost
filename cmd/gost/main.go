@@ -27,6 +27,7 @@ func init() {
 
 	var (
 		printVersion bool
+		Limit        int64
 	)
 
 	flag.Var(&baseCfg.route.ChainNodes, "F", "forward address, can make a forward chain")
@@ -35,6 +36,7 @@ func init() {
 	flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
 	flag.BoolVar(&baseCfg.Reuseport, "R", false, "enable Reuseport")
 	flag.BoolVar(&printVersion, "V", false, "print version")
+	flag.Int64Var(&Limit, "M", 0, "limit flow (kb)")
 	if pprofEnabled {
 		flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
 	}
@@ -57,6 +59,8 @@ func init() {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
+
+	gost.LimitFLow(Limit)
 }
 
 func main() {

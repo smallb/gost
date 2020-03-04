@@ -282,7 +282,6 @@ func (group *NodeGroup) Next(addr string) (node Node, err error) {
 	if ok && node.marker.FailCount() <= 0 {
 		if time.Now().Before(node.cacheAliveTime) {
 			node.cacheAliveTime = time.Now().Add(timeout)
-			Info.Printf("cache ip -> from: %s - to: %s", host, node.Addr)
 			return
 		}
 	}

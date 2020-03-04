@@ -21,6 +21,7 @@ require (
 	github.com/google/gopacket v1.1.17 // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
+	github.com/juju/ratelimit v1.0.1
 	github.com/klauspost/compress v1.4.1
 	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/klauspost/reedsolomon v1.7.0 // indirect
