@@ -130,7 +130,7 @@ func (h *sniHandler) Handle(conn net.Conn) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(host)
+		route, err = h.options.Chain.selectRouteFor(conn.RemoteAddr().String(), host)
 		if err != nil {
 			log.Logf("[sni] %s -> %s : %s",
 				conn.RemoteAddr(), conn.LocalAddr(), err)

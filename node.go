@@ -3,6 +3,7 @@ package gost
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type Node struct {
 	Client           *Client
 	marker           *failMarker
 	Bypass           *Bypass
+	cacheAliveTime   time.Time
 }
 
 // ParseNode parses the node info.
@@ -186,15 +188,19 @@ func (node Node) String() string {
 type NodeGroup struct {
 	ID              int
 	nodes           []Node
+	cacheNode       map[string]Node
 	selectorOptions []SelectOption
 	selector        NodeSelector
 	mux             sync.RWMutex
+	CacheTimeout    time.Duration
 }
 
 // NewNodeGroup creates a node group
 func NewNodeGroup(nodes ...Node) *NodeGroup {
 	return &NodeGroup{
-		nodes: nodes,
+		nodes:        nodes,
+		CacheTimeout: time.Minute * 5,
+		cacheNode:    make(map[string]Node),
 	}
 }
 
@@ -261,13 +267,25 @@ func (group *NodeGroup) GetNode(i int) Node {
 
 // Next selects a node from group.
 // It also selects IP if the IP list exists.
-func (group *NodeGroup) Next() (node Node, err error) {
+func (group *NodeGroup) Next(addr string) (node Node, err error) {
 	if group == nil {
 		return
 	}
 
 	group.mux.RLock()
 	defer group.mux.RUnlock()
+
+	timeout := group.CacheTimeout
+
+	host, _, _ := net.SplitHostPort(addr)
+	node, ok := group.cacheNode[host]
+	if ok && node.marker.FailCount() <= 0 {
+		if time.Now().Before(node.cacheAliveTime) {
+			node.cacheAliveTime = time.Now().Add(timeout)
+			Info.Printf("cache ip -> from: %s - to: %s", host, node.Addr)
+			return
+		}
+	}
 
 	selector := group.selector
 	if selector == nil {
@@ -279,6 +297,7 @@ func (group *NodeGroup) Next() (node Node, err error) {
 	if err != nil {
 		return
 	}
-
+	node.cacheAliveTime = time.Now().Add(timeout)
+	group.cacheNode[host] = node
 	return
 }

@@ -885,8 +885,8 @@ func (h *socks5Handler) Handle(conn net.Conn) {
 func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 	host := req.Addr.String()
 
-	log.Logf("[socks5] %s -> %s -> %s",
-		conn.RemoteAddr(), h.options.Node.String(), host)
+	log.Logf("[socks5] %s -> %s -> %s -> %s",
+		conn.RemoteAddr(), h.options.Node.String(), conn.LocalAddr(), host)
 
 	if !Can("tcp", host, h.options.Whitelist, h.options.Blacklist) {
 		log.Logf("[socks5] %s - %s : Unauthorized to tcp connect to %s",
@@ -923,7 +923,7 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(host)
+		route, err = h.options.Chain.selectRouteFor(conn.RemoteAddr().String(), host)
 		if err != nil {
 			log.Logf("[socks5] %s -> %s : %s",
 				conn.RemoteAddr(), conn.LocalAddr(), err)
@@ -950,6 +950,13 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 		}
 		log.Logf("[socks5] %s -> %s : %s",
 			conn.RemoteAddr(), conn.LocalAddr(), err)
+
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return // ignore i/o timeout
+		}
+
+		Error.Printf("[socks5 tcp] %s -> %s -> %s: %s\n",
+			conn.RemoteAddr(), conn.LocalAddr(), host, err)
 	}
 
 	if err != nil {
@@ -994,7 +1001,7 @@ func (h *socks5Handler) handleBind(conn net.Conn, req *gosocks5.Request) {
 		return
 	}
 
-	cc, err := h.options.Chain.Conn()
+	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	if err != nil {
 		log.Logf("[socks5-bind] %s <- %s : %s",
 			conn.RemoteAddr(), conn.LocalAddr(), err)
@@ -1168,7 +1175,7 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 	}
 
 	// forward udp local <-> tunnel
-	cc, err := h.options.Chain.Conn()
+	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	// connection error
 	if err != nil {
 		log.Logf("[socks5-udp] %s -> %s : %s", conn.RemoteAddr(), socksAddr, err)
@@ -1434,9 +1441,10 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 		return
 	}
 
-	cc, err := h.options.Chain.Conn()
+	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	// connection error
 	if err != nil {
+		Error.Printf("[socks5 udp] udp-tun %s -> %s : %s\n", conn.RemoteAddr(), req.Addr, err)
 		log.Logf("[socks5] udp-tun %s -> %s : %s", conn.RemoteAddr(), req.Addr, err)
 		reply := gosocks5.NewReply(gosocks5.Failure, nil)
 		reply.Write(conn)
@@ -1540,7 +1548,7 @@ func (h *socks5Handler) handleMuxBind(conn net.Conn, req *gosocks5.Request) {
 		return
 	}
 
-	cc, err := h.options.Chain.Conn()
+	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	if err != nil {
 		log.Logf("[socks5] mbind %s <- %s : %s", conn.RemoteAddr(), req.Addr, err)
 		reply := gosocks5.NewReply(gosocks5.Failure, nil)
@@ -1744,7 +1752,7 @@ func (h *socks4Handler) handleConnect(conn net.Conn, req *gosocks4.Request) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(addr)
+		route, err = h.options.Chain.selectRouteFor(conn.RemoteAddr().String(), addr)
 		if err != nil {
 			log.Logf("[socks4] %s -> %s : %s",
 				conn.RemoteAddr(), conn.LocalAddr(), err)
@@ -1811,7 +1819,7 @@ func (h *socks4Handler) handleBind(conn net.Conn, req *gosocks4.Request) {
 		return
 	}
 
-	cc, err := h.options.Chain.Conn()
+	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	// connection error
 	if err != nil && err != ErrEmptyChain {
 		log.Logf("[socks4-bind] %s <- %s : %s", conn.RemoteAddr(), req.Addr, err)
@@ -1888,7 +1896,7 @@ func socks5Handshake(conn net.Conn, opts ...socks5HandshakeOption) (net.Conn, er
 }
 
 func getSocks5UDPTunnel(chain *Chain, addr net.Addr) (net.Conn, error) {
-	c, err := chain.Conn()
+	c, err := chain.Conn("")
 	if err != nil {
 		return nil, err
 	}

@@ -408,7 +408,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(host)
+		route, err = h.options.Chain.selectRouteFor(r.RemoteAddr, host)
 		if err != nil {
 			log.Logf("[http2] %s -> %s : %s",
 				r.RemoteAddr, laddr, err)
