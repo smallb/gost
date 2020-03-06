@@ -140,7 +140,7 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 		return nil, err
 	}
 
-	// log.Logf("[chain] -> %s - %s - %s", options.LocalAddr, address, route.LastNode().Addr)
+	log.Logf("[chain] %s - %s - %s", options.LocalAddr, route.LastNode().Addr, address)
 
 	ipAddr := address
 	if address != "" {
@@ -182,10 +182,11 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 			Timeout:   timeout,
 			LocalAddr: laddr,
 		}
+
 		return d.DialContext(ctx, network, ipAddr)
 	}
 
-	conn, err := route.getConn(ctx)
+	conn, err := route.getConn(ctx, options.LocalAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +244,7 @@ func (c *Chain) Conn(raddr string, opts ...ChainOption) (conn net.Conn, err erro
 		if err != nil {
 			continue
 		}
-		conn, err = route.getConn(ctx)
+		conn, err = route.getConn(ctx, "")
 		if err == nil {
 			break
 		}
@@ -252,7 +253,7 @@ func (c *Chain) Conn(raddr string, opts ...ChainOption) (conn net.Conn, err erro
 }
 
 // getConn obtains a connection to the last node of the chain.
-func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
+func (c *Chain) getConn(ctx context.Context, laddr string) (conn net.Conn, err error) {
 	if c.IsEmpty() {
 		err = ErrEmptyChain
 		return
@@ -260,12 +261,12 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 	nodes := c.Nodes()
 	node := nodes[0]
 
-	cn, err := node.Client.Dial(node.Addr, node.DialOptions...)
+	cn, err := node.Client.Dial(laddr, node.Addr, node.DialOptions...)
 	if err != nil {
 		node.MarkDead()
 		return
 	}
-
+	log.Logf("[chain] 1 %s - %s", cn.LocalAddr().String(), node.Addr)
 	cn, err = node.Client.Handshake(cn, node.HandshakeOptions...)
 	if err != nil {
 		node.MarkDead()
@@ -273,6 +274,7 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 	}
 	node.ResetDead()
 
+	log.Logf("[chain] 2 %s - %s", cn.LocalAddr().String(), node.Addr)
 	preNode := node
 	for _, node := range nodes[1:] {
 		var cc net.Conn
@@ -289,7 +291,7 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 			return
 		}
 		node.ResetDead()
-
+		log.Logf("[chain] 3 %s - %s", cc.LocalAddr().String(), node.Addr)
 		cn = cc
 		preNode = node
 	}

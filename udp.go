@@ -18,13 +18,29 @@ func UDPTransporter() Transporter {
 	return &udpTransporter{}
 }
 
-func (tr *udpTransporter) Dial(addr string, options ...DialOption) (net.Conn, error) {
+func (tr *udpTransporter) Dial(laddr, addr string, options ...DialOption) (net.Conn, error) {
+	opts := &DialOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+	// TODO laddr ...
+	var uladdr *net.UDPAddr
+	host, _, err := net.SplitHostPort(laddr)
+	if err == nil {
+		ip := net.ParseIP(host)
+		if ip.IsLoopback() {
+			host = ""
+		}
+		host = net.JoinHostPort(host, "0")
+		uladdr, _ = net.ResolveUDPAddr("udp", host)
+	}
+
 	taddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.DialUDP("udp", nil, taddr)
+	conn, err := net.DialUDP("udp", uladdr, taddr)
 	if err != nil {
 		return nil, err
 	}

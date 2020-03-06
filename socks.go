@@ -407,12 +407,12 @@ func SOCKS5MuxBindTransporter(bindAddr string) Transporter {
 	}
 }
 
-func (tr *socks5MuxBindTransporter) Dial(addr string, options ...DialOption) (conn net.Conn, err error) {
+func (tr *socks5MuxBindTransporter) Dial(laddr, addr string, options ...DialOption) (conn net.Conn, err error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
 	}
-
+	// TODO laddr ...
 	timeout := opts.Timeout
 	if timeout <= 0 {
 		timeout = DialTimeout
