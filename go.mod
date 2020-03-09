@@ -14,7 +14,8 @@ require (
 	github.com/docker/libcontainer v2.2.1+incompatible
 	github.com/ginuerzh/gosocks4 v0.0.1
 	github.com/ginuerzh/gosocks5 v0.2.0
-	github.com/ginuerzh/tls-dissector v0.0.1
+	github.com/ginuerzh/tls-dissector v0.0.2-0.20200224064855-24ab2b3a3796
+	github.com/go-gost/relay v0.1.0
 	github.com/go-log/log v0.1.0
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/mock v1.2.0 // indirect
@@ -33,14 +34,14 @@ require (
 	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/ryanuber/go-glob v0.0.0-20170128012129-256dc444b735
-	github.com/shadowsocks/go-shadowsocks2 v0.0.12-0.20191211020244-a57bc393e43a
+	github.com/shadowsocks/go-shadowsocks2 v0.1.0
 	github.com/shadowsocks/shadowsocks-go v0.0.0-20170121203516-97a5c71f80ba
 	github.com/songgao/water v0.0.0-20190725173103-fd331bda3f4b
 	github.com/templexxx/cpufeat v0.0.0-20180724012125-cef66df7f161 // indirect
 	github.com/templexxx/xor v0.0.0-20181023030647-4e92f724b73b // indirect
 	github.com/tjfoc/gmsm v1.0.1 // indirect
 	github.com/xtaci/tcpraw v1.2.25
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 	golang.org/x/net v0.0.0-20190923162816-aa69164e4478
 	gopkg.in/gorilla/websocket.v1 v1.4.0
 	gopkg.in/xtaci/kcp-go.v4 v4.3.2

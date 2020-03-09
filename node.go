@@ -83,10 +83,9 @@ func ParseNode(s string) (node Node, err error) {
 	case "kcp", "ssh", "quic":
 	case "ssu":
 		node.Transport = "udp"
-	case "obfs4":
+	case "ohttp", "otls", "obfs4": // obfs
 	case "tcp", "udp":
 	case "rtcp", "rudp": // rtcp and rudp are for remote port forwarding
-	case "ohttp": // obfs-http
 	case "tun", "tap": // tun/tap device
 	case "ftcp": // fake TCP
 	case "dns":
@@ -112,6 +111,7 @@ func ParseNode(s string) (node Node, err error) {
 	case "tun", "tap": // tun/tap device
 	case "ftcp": // fake TCP
 	case "dns", "dot", "doh":
+	case "relay":
 	default:
 		node.Protocol = ""
 	}

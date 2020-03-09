@@ -75,10 +75,21 @@ func (c *shadowConnector) ConnectContext(ctx context.Context, conn net.Conn, net
 	if c.cipher != nil {
 		conn = c.cipher.StreamConn(conn)
 	}
-	if _, err := conn.Write(rawaddr[:n]); err != nil {
-		return nil, err
+
+	sc := &shadowConn{
+		Conn: conn,
 	}
-	return conn, nil
+
+	// write the addr at once.
+	if opts.NoDelay {
+		if _, err := sc.Write(rawaddr[:n]); err != nil {
+			return nil, err
+		}
+	} else {
+		sc.wbuf.Write(rawaddr[:n]) // cache the header
+	}
+
+	return sc, nil
 }
 
 type shadowHandler struct {
@@ -111,7 +122,9 @@ func (h *shadowHandler) Handle(conn net.Conn) {
 	defer conn.Close()
 
 	if h.cipher != nil {
-		conn = h.cipher.StreamConn(conn)
+		conn = &shadowConn{
+			Conn: h.cipher.StreamConn(conn),
+		}
 	}
 
 	conn.SetReadDeadline(time.Now().Add(ReadTimeout))
@@ -244,7 +257,9 @@ func (c *shadowUDPConnector) ConnectContext(ctx context.Context, conn net.Conn, 
 	}
 
 	if c.cipher != nil {
-		conn = c.cipher.StreamConn(conn)
+		conn = &shadowConn{
+			Conn: c.cipher.StreamConn(conn),
+		}
 	}
 
 	return &socks5UDPTunnelConn{
@@ -287,7 +302,13 @@ func (h *shadowUDPHandler) Handle(conn net.Conn) {
 		log.Logf("[ssu] %s: %s", conn.LocalAddr(), err)
 		return
 	}
-	cc = c.(net.PacketConn)
+	var ok bool
+	cc, ok = c.(net.PacketConn)
+	if !ok {
+		log.Logf("[ssu] %s: not a packet connection", conn.LocalAddr())
+		return
+	}
+
 	defer cc.Close()
 
 	pc, ok := conn.(net.PacketConn)
@@ -302,7 +323,9 @@ func (h *shadowUDPHandler) Handle(conn net.Conn) {
 	}
 
 	if h.cipher != nil {
-		conn = h.cipher.StreamConn(conn)
+		conn = &shadowConn{
+			Conn: h.cipher.StreamConn(conn),
+		}
 	}
 
 	log.Logf("[ssu] %s <-> %s", conn.RemoteAddr(), conn.LocalAddr())
@@ -469,10 +492,17 @@ func (h *shadowUDPHandler) transportUDP(conn net.Conn, cc net.PacketConn) error 
 // we wrap around it to make io.Copy happy.
 type shadowConn struct {
 	net.Conn
+	wbuf bytes.Buffer
 }
 
 func (c *shadowConn) Write(b []byte) (n int, err error) {
 	n = len(b) // force byte length consistent
+	if c.wbuf.Len() > 0 {
+		c.wbuf.Write(b) // append the data to the cached header
+		_, err = c.Conn.Write(c.wbuf.Bytes())
+		c.wbuf.Reset()
+		return
+	}
 	_, err = c.Conn.Write(b)
 	return
 }
@@ -546,9 +576,7 @@ type shadowCipher struct {
 }
 
 func (c *shadowCipher) StreamConn(conn net.Conn) net.Conn {
-	return &shadowConn{
-		Conn: ss.NewConn(conn, c.cipher.Copy()),
-	}
+	return ss.NewConn(conn, c.cipher.Copy())
 }
 
 func (c *shadowCipher) PacketConn(conn net.PacketConn) net.PacketConn {
@@ -566,14 +594,17 @@ func initShadowCipher(info *url.Userinfo) (cipher core.Cipher) {
 		return
 	}
 
-	cipher, _ = core.PickCipher(method, nil, password)
+	cp, _ := ss.NewCipher(method, password)
+	if cp != nil {
+		cipher = &shadowCipher{cipher: cp}
+	}
 	if cipher == nil {
-		cp, err := ss.NewCipher(method, password)
+		var err error
+		cipher, err = core.PickCipher(method, nil, password)
 		if err != nil {
 			log.Logf("[ss] %s", err)
 			return
 		}
-		cipher = &shadowCipher{cipher: cp}
 	}
 	return
 }

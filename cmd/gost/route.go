@@ -137,8 +137,6 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 
 	timeout := node.GetDuration("timeout")
 
-	var host string
-
 	var tr gost.Transporter
 	switch node.Transport {
 	case "tls":
@@ -195,8 +193,9 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 	case "obfs4":
 		tr = gost.Obfs4Transporter()
 	case "ohttp":
-		host = node.Get("host")
 		tr = gost.ObfsHTTPTransporter()
+	case "otls":
+		tr = gost.ObfsTLSTransporter()
 	case "ftcp":
 		tr = gost.FakeTCPTransporter()
 	case "udp":
@@ -229,6 +228,8 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 		connector = gost.SNIConnector(node.Get("host"))
 	case "http":
 		connector = gost.HTTPConnector(node.User)
+	case "relay":
+		connector = gost.RelayConnector(node.User)
 	default:
 		connector = gost.AutoConnector(node.User)
 	}
@@ -240,10 +241,21 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 	node.ConnectOptions = []gost.ConnectOption{
 		gost.UserAgentConnectOption(node.Get("agent")),
 		gost.NoTLSConnectOption(node.GetBool("notls")),
+		gost.NoDelayConnectOption(node.GetBool("nodelay")),
 	}
 
+	host := node.Get("host")
 	if host == "" {
 		host = node.Host
+	}
+
+	sshConfig := &gost.SSHConfig{}
+	if s := node.Get("ssh_key"); s != "" {
+		key, err := gost.ParseSSHKeyFile(s)
+		if err != nil {
+			return nil, err
+		}
+		sshConfig.Key = key
 	}
 	handshakeOptions := []gost.HandshakeOption{
 		gost.AddrHandshakeOption(node.Addr),
@@ -253,7 +265,9 @@ func parseChainNode(ns string) (nodes []gost.Node, err error) {
 		gost.IntervalHandshakeOption(node.GetDuration("ping")),
 		gost.TimeoutHandshakeOption(timeout),
 		gost.RetryHandshakeOption(node.GetInt("retry")),
+		gost.SSHConfigHandshakeOption(sshConfig),
 	}
+
 	node.Client = &gost.Client{
 		Connector:   connector,
 		Transporter: tr,
@@ -382,6 +396,20 @@ func (r *route) GenRouters() ([]router, error) {
 				Authenticator: authenticator,
 				TLSConfig:     tlsCfg,
 			}
+			if s := node.Get("ssh_key"); s != "" {
+				key, err := gost.ParseSSHKeyFile(s)
+				if err != nil {
+					return nil, err
+				}
+				config.Key = key
+			}
+			if s := node.Get("ssh_authorized_keys"); s != "" {
+				keys, err := gost.ParseSSHAuthorizedKeysFile(s)
+				if err != nil {
+					return nil, err
+				}
+				config.AuthorizedKeys = keys
+			}
 			if node.Protocol == "forward" {
 				ln, err = gost.TCPListener(node.Addr)
 			} else {
@@ -441,6 +469,8 @@ func (r *route) GenRouters() ([]router, error) {
 			ln, err = gost.Obfs4Listener(node.Addr)
 		case "ohttp":
 			ln, err = gost.ObfsHTTPListener(node.Addr)
+		case "otls":
+			ln, err = gost.ObfsTLSListener(node.Addr)
 		case "tun":
 			cfg := gost.TunConfig{
 				Name:    node.Get("name"),
@@ -526,6 +556,8 @@ func (r *route) GenRouters() ([]router, error) {
 			handler = gost.TapHandler()
 		case "dns":
 			handler = gost.DNSHandler(node.Remote)
+		case "relay":
+			handler = gost.RelayHandler(node.Remote)
 		default:
 			// start from 2.5, if remote is not empty, then we assume that it is a forward tunnel.
 			if node.Remote != "" {

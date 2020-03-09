@@ -40,6 +40,7 @@ func ipProtocol(p waterutil.IPProtocol) string {
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
+// IPRoute is an IP routing entry.
 type IPRoute struct {
 	Dest    *net.IPNet
 	Gateway net.IP
@@ -172,7 +173,13 @@ func (h *tunHandler) Handle(conn net.Conn) {
 				if err != nil {
 					return err
 				}
-				pc = cc.(net.PacketConn)
+				var ok bool
+				pc, ok = cc.(net.PacketConn)
+				if !ok {
+					err = errors.New("not a packet connection")
+					log.Logf("[tun] %s - %s: %s", conn.LocalAddr(), raddr, err)
+					return err
+				}
 			} else {
 				if h.options.TCPMode {
 					if raddr != nil {
@@ -329,7 +336,7 @@ func (h *tunHandler) transportTun(tun net.Conn, conn net.PacketConn, raddr net.A
 		for {
 			err := func() error {
 				b := sPool.Get().([]byte)
-				defer mPool.Put(b)
+				defer sPool.Put(b)
 
 				n, addr, err := conn.ReadFrom(b)
 				if err != nil &&
@@ -556,7 +563,13 @@ func (h *tapHandler) Handle(conn net.Conn) {
 				if err != nil {
 					return err
 				}
-				pc = cc.(net.PacketConn)
+				var ok bool
+				pc, ok = cc.(net.PacketConn)
+				if !ok {
+					err = errors.New("not a packet connection")
+					log.Logf("[tap] %s - %s: %s", conn.LocalAddr(), raddr, err)
+					return err
+				}
 			} else {
 				if h.options.TCPMode {
 					if raddr != nil {
@@ -685,7 +698,7 @@ func (h *tapHandler) transportTap(tap net.Conn, conn net.PacketConn, raddr net.A
 		for {
 			err := func() error {
 				b := sPool.Get().([]byte)
-				defer mPool.Put(b)
+				defer sPool.Put(b)
 
 				n, addr, err := conn.ReadFrom(b)
 				if err != nil &&
