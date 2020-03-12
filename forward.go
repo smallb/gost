@@ -125,7 +125,7 @@ func (h *tcpDirectForwardHandler) Handle(conn net.Conn) {
 	var node Node
 	var err error
 	for i := 0; i < retries; i++ {
-		node, err = h.group.Next()
+		node, err = h.group.Next(conn.RemoteAddr().String())
 		if err != nil {
 			log.Logf("[tcp] %s - %s : %s", conn.RemoteAddr(), h.raddr, err)
 			return
@@ -186,7 +186,7 @@ func (h *udpDirectForwardHandler) Init(options ...HandlerOption) {
 func (h *udpDirectForwardHandler) Handle(conn net.Conn) {
 	defer conn.Close()
 
-	node, err := h.group.Next()
+	node, err := h.group.Next(conn.RemoteAddr().String())
 	if err != nil {
 		log.Logf("[udp] %s - %s : %s", conn.RemoteAddr(), h.raddr, err)
 		return
@@ -245,7 +245,7 @@ func (h *tcpRemoteForwardHandler) Handle(conn net.Conn) {
 	var node Node
 	var err error
 	for i := 0; i < retries; i++ {
-		node, err = h.group.Next()
+		node, err = h.group.Next(conn.RemoteAddr().String())
 		if err != nil {
 			log.Logf("[rtcp] %s - %s : %s", conn.LocalAddr(), h.raddr, err)
 			return
@@ -300,7 +300,7 @@ func (h *udpRemoteForwardHandler) Init(options ...HandlerOption) {
 func (h *udpRemoteForwardHandler) Handle(conn net.Conn) {
 	defer conn.Close()
 
-	node, err := h.group.Next()
+	node, err := h.group.Next(conn.RemoteAddr().String())
 	if err != nil {
 		log.Logf("[rudp] %s - %s : %s", conn.RemoteAddr(), h.raddr, err)
 		return
@@ -439,7 +439,7 @@ func (l *tcpRemoteForwardListener) accept() (conn net.Conn, err error) {
 			return l.muxAccept() // multiplexing support for binding.
 		}
 
-		cc, er := l.chain.Conn()
+		cc, er := l.chain.Conn("")
 		if er != nil {
 			return nil, er
 		}
@@ -473,7 +473,7 @@ func (l *tcpRemoteForwardListener) getSession() (s *muxSession, err error) {
 		return l.session, nil
 	}
 
-	conn, err := l.chain.Conn()
+	conn, err := l.chain.Conn("")
 	if err != nil {
 		return nil, err
 	}

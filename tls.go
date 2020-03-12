@@ -52,12 +52,12 @@ func MTLSTransporter() Transporter {
 	}
 }
 
-func (tr *mtlsTransporter) Dial(addr string, options ...DialOption) (conn net.Conn, err error) {
+func (tr *mtlsTransporter) Dial(laddr, addr string, options ...DialOption) (conn net.Conn, err error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
 	}
-
+	// TODO laddr ...
 	tr.sessionMutex.Lock()
 	defer tr.sessionMutex.Unlock()
 

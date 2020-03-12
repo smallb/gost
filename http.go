@@ -234,7 +234,7 @@ func (h *httpHandler) handleRequest(conn net.Conn, req *http.Request) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(host)
+		route, err = h.options.Chain.selectRouteFor(conn.RemoteAddr().String(), host)
 		if err != nil {
 			log.Logf("[http] %s -> %s : %s",
 				conn.RemoteAddr(), conn.LocalAddr(), err)
@@ -397,7 +397,7 @@ func (h *httpHandler) forwardRequest(conn net.Conn, req *http.Request, route *Ch
 		userpass = base64.StdEncoding.EncodeToString([]byte(u + ":" + p))
 	}
 
-	cc, err := route.Conn()
+	cc, err := route.Conn(conn.RemoteAddr().String())
 	if err != nil {
 		return err
 	}

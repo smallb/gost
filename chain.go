@@ -135,10 +135,12 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 	if options == nil {
 		options = &ChainOptions{}
 	}
-	route, err := c.selectRouteFor(address)
+	route, err := c.selectRouteFor("", address)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Logf("[chain] %s - %s - %s", options.LocalAddr, route.LastNode().Addr, address)
 
 	ipAddr := address
 	if address != "" {
@@ -180,10 +182,11 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 			Timeout:   timeout,
 			LocalAddr: laddr,
 		}
+
 		return d.DialContext(ctx, network, ipAddr)
 	}
 
-	conn, err := route.getConn(ctx)
+	conn, err := route.getConn(ctx, options.LocalAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +222,7 @@ func (*Chain) resolve(addr string, resolver Resolver, hosts *Hosts) string {
 }
 
 // Conn obtains a handshaked connection to the last node of the chain.
-func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
+func (c *Chain) Conn(raddr string, opts ...ChainOption) (conn net.Conn, err error) {
 	options := &ChainOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -237,11 +240,11 @@ func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
 
 	for i := 0; i < retries; i++ {
 		var route *Chain
-		route, err = c.selectRoute()
+		route, err = c.selectRoute(raddr)
 		if err != nil {
 			continue
 		}
-		conn, err = route.getConn(ctx)
+		conn, err = route.getConn(ctx, "")
 		if err == nil {
 			break
 		}
@@ -250,7 +253,7 @@ func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
 }
 
 // getConn obtains a connection to the last node of the chain.
-func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
+func (c *Chain) getConn(ctx context.Context, laddr string) (conn net.Conn, err error) {
 	if c.IsEmpty() {
 		err = ErrEmptyChain
 		return
@@ -258,12 +261,12 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 	nodes := c.Nodes()
 	node := nodes[0]
 
-	cn, err := node.Client.Dial(node.Addr, node.DialOptions...)
+	cn, err := node.Client.Dial(laddr, node.Addr, node.DialOptions...)
 	if err != nil {
 		node.MarkDead()
 		return
 	}
-
+	log.Logf("[chain] 1 %s - %s", cn.LocalAddr().String(), node.Addr)
 	cn, err = node.Client.Handshake(cn, node.HandshakeOptions...)
 	if err != nil {
 		node.MarkDead()
@@ -271,6 +274,7 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 	}
 	node.ResetDead()
 
+	log.Logf("[chain] 2 %s - %s", cn.LocalAddr().String(), node.Addr)
 	preNode := node
 	for _, node := range nodes[1:] {
 		var cc net.Conn
@@ -287,7 +291,7 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 			return
 		}
 		node.ResetDead()
-
+		log.Logf("[chain] 3 %s - %s", cc.LocalAddr().String(), node.Addr)
 		cn = cc
 		preNode = node
 	}
@@ -296,12 +300,12 @@ func (c *Chain) getConn(ctx context.Context) (conn net.Conn, err error) {
 	return
 }
 
-func (c *Chain) selectRoute() (route *Chain, err error) {
-	return c.selectRouteFor("")
+func (c *Chain) selectRoute(raddr string) (route *Chain, err error) {
+	return c.selectRouteFor(raddr, "")
 }
 
 // selectRouteFor selects route with bypass testing.
-func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
+func (c *Chain) selectRouteFor(raddr, addr string) (route *Chain, err error) {
 	if c.IsEmpty() {
 		return newRoute(), nil
 	}
@@ -314,7 +318,7 @@ func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
 
 	for _, group := range c.nodeGroups {
 		var node Node
-		node, err = group.Next()
+		node, err = group.Next(raddr)
 		if err != nil {
 			return
 		}

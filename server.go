@@ -9,7 +9,7 @@ import (
 	"github.com/juju/ratelimit"
 )
 
-var limitBucket *ratelimit.Bucket
+var LimitBucket *ratelimit.Bucket
 
 // Accepter represents a network endpoint that can accept connection from peer.
 type Accepter interface {
@@ -108,7 +108,7 @@ type Listener interface {
 // LimitFLow (kb)
 func LimitFLow(limit int64) {
 	if 0 < limit {
-		limitBucket = ratelimit.NewBucketWithRate((float64)(limit*1024), limit*1024)
+		LimitBucket = ratelimit.NewBucketWithRate((float64)(limit*1024), limit*1024)
 	}
 }
 
@@ -133,10 +133,10 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	buf := lPool.Get().([]byte)
 	defer lPool.Put(buf)
 
-	if nil == limitBucket {
+	if nil == LimitBucket {
 		_, err := io.CopyBuffer(dst, src, buf)
 		return err
 	}
-	_, err := io.CopyBuffer(dst, ratelimit.Reader(src, limitBucket), buf)
+	_, err := io.CopyBuffer(dst, ratelimit.Reader(src, LimitBucket), buf)
 	return err
 }

@@ -16,12 +16,12 @@ func FakeTCPTransporter() Transporter {
 	return &fakeTCPTransporter{}
 }
 
-func (tr *fakeTCPTransporter) Dial(addr string, options ...DialOption) (conn net.Conn, err error) {
+func (tr *fakeTCPTransporter) Dial(laddr, addr string, options ...DialOption) (conn net.Conn, err error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
 	}
-
+	// TODO laddr ...
 	raddr, er := net.ResolveTCPAddr("tcp", addr)
 	if er != nil {
 		return nil, er

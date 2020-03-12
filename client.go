@@ -24,7 +24,7 @@ var DefaultClient = &Client{Connector: HTTPConnector(nil), Transporter: TCPTrans
 
 // Dial connects to the address addr via the DefaultClient.
 func Dial(addr string, options ...DialOption) (net.Conn, error) {
-	return DefaultClient.Dial(addr, options...)
+	return DefaultClient.Dial("", addr, options...)
 }
 
 // Handshake performs a handshake via the DefaultClient.
@@ -73,7 +73,7 @@ func (c *autoConnector) ConnectContext(ctx context.Context, conn net.Conn, netwo
 
 // Transporter is responsible for handshaking with the proxy server.
 type Transporter interface {
-	Dial(addr string, options ...DialOption) (net.Conn, error)
+	Dial(laddr, addr string, options ...DialOption) (net.Conn, error)
 	Handshake(conn net.Conn, options ...HandshakeOption) (net.Conn, error)
 	// Indicate that the Transporter supports multiplex
 	Multiplex() bool

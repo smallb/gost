@@ -1,6 +1,10 @@
 package gost
 
-import "net"
+import (
+	"net"
+
+	"github.com/go-log/log"
+)
 
 // tcpTransporter is a raw TCP transporter.
 type tcpTransporter struct{}
@@ -10,7 +14,7 @@ func TCPTransporter() Transporter {
 	return &tcpTransporter{}
 }
 
-func (tr *tcpTransporter) Dial(addr string, options ...DialOption) (net.Conn, error) {
+func (tr *tcpTransporter) Dial(laddr, addr string, options ...DialOption) (net.Conn, error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
@@ -21,7 +25,26 @@ func (tr *tcpTransporter) Dial(addr string, options ...DialOption) (net.Conn, er
 		timeout = DialTimeout
 	}
 	if opts.Chain == nil {
-		return net.DialTimeout("tcp", addr, timeout)
+		log.Logf("[tcp] opts.LocalAddr:%s", laddr)
+		host, _, err := net.SplitHostPort(laddr)
+		if err != nil {
+			return net.DialTimeout("tcp", addr, timeout)
+		}
+		ip := net.ParseIP(host)
+		if ip.IsLoopback() {
+			host = ""
+		}
+		host = net.JoinHostPort(host, "0")
+
+		laddr, err := net.ResolveTCPAddr("tcp", host)
+		if err != nil {
+			return nil, err
+		}
+		d := &net.Dialer{
+			Timeout:   timeout,
+			LocalAddr: laddr,
+		}
+		return d.Dial("tcp", addr)
 	}
 	return opts.Chain.Dial(addr)
 }

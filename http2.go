@@ -130,12 +130,12 @@ func HTTP2Transporter(config *tls.Config) Transporter {
 	}
 }
 
-func (tr *http2Transporter) Dial(addr string, options ...DialOption) (net.Conn, error) {
+func (tr *http2Transporter) Dial(laddr, addr string, options ...DialOption) (net.Conn, error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
 	}
-
+	// TODO laddr ...
 	tr.clientMutex.Lock()
 	defer tr.clientMutex.Unlock()
 
@@ -218,12 +218,12 @@ func H2CTransporter(path string) Transporter {
 	}
 }
 
-func (tr *h2Transporter) Dial(addr string, options ...DialOption) (net.Conn, error) {
+func (tr *h2Transporter) Dial(laddr, addr string, options ...DialOption) (net.Conn, error) {
 	opts := &DialOptions{}
 	for _, option := range options {
 		option(opts)
 	}
-
+	// TODO laddr ...
 	tr.clientMutex.Lock()
 	client, ok := tr.clients[addr]
 	if !ok {
@@ -408,7 +408,7 @@ func (h *http2Handler) roundTrip(w http.ResponseWriter, r *http.Request) {
 	var cc net.Conn
 	var route *Chain
 	for i := 0; i < retries; i++ {
-		route, err = h.options.Chain.selectRouteFor(host)
+		route, err = h.options.Chain.selectRouteFor(r.RemoteAddr, host)
 		if err != nil {
 			log.Logf("[http2] %s -> %s : %s",
 				r.RemoteAddr, laddr, err)
