@@ -69,6 +69,8 @@ extern "C" {
 #endif
 
 
+extern void stop();
+
 extern GoInt start(GoString p0);
 
 #ifdef __cplusplus

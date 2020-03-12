@@ -28,6 +28,7 @@ var (
 	pprofAddr     string
 	pprofEnabled  = os.Getenv("PROFILING") != ""
 	isFlagSet     bool
+	grouters 	  []router
 )
 
 func parseCommand(cmd string) error {
@@ -90,29 +91,34 @@ func startEx() error {
 	gost.Debug = baseCfg.Debug
 	gost.Reuseport = baseCfg.Reuseport
 
-	var routers []router
 	rts, err := baseCfg.route.GenRouters()
 	if err != nil {
 		return err
 	}
-	routers = append(routers, rts...)
+	grouters = append(grouters, rts...)
 
 	for _, route := range baseCfg.Routes {
 		rts, err := route.GenRouters()
 		if err != nil {
 			return err
 		}
-		routers = append(routers, rts...)
+		grouters = append(grouters, rts...)
 	}
 
-	if len(routers) == 0 {
+	if len(grouters) == 0 {
 		return errors.New("invalid config")
 	}
-	for i := range routers {
-		go routers[i].Serve()
+	for i := range grouters {
+		go grouters[i].Serve()
 	}
 
 	return nil
+}
+//export stop
+func stop() {
+	for i := range grouters {
+		go grouters[i].Close()
+	}
 }
 
 //export start
