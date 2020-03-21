@@ -20,7 +20,7 @@ func init() {
 	os.Mkdir("log", os.ModePerm)
 	logfile := "./log/" + time.Now().Format("2006-01-02") + "-errors.txt"
 	file, err := os.OpenFile(logfile,
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0664)
 	if err != nil {
 		log.Fatalln("Failed to open error log file:", err)
 	}
