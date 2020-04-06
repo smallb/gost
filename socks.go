@@ -1417,6 +1417,10 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 			return
 		}
 
+		if !MoreEth {
+			addr = ""
+		}
+
 		bindAddr, _ := net.ResolveUDPAddr("udp", addr)
 		uc, err := ReuseportListenUDP("udp", bindAddr)
 		if err != nil {
@@ -1477,7 +1481,7 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 
 		for {
 			if h.options.Timeout == 0 {
-				pc.SetReadDeadline(time.Now().Add(defaultTTL))
+				pc.SetReadDeadline(time.Now().Add(5 * time.Minute))
 			} else {
 				pc.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1508,6 +1512,11 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 
 	go func() {
 		for {
+			if h.options.Timeout == 0 {
+				cc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				cc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			dgram, err := gosocks5.ReadUDPDatagram(cc)
 			if err != nil {
 				// log.Logf("[udp-tun] %s -> 0 : %s", cc.RemoteAddr(), err)
