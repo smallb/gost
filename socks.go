@@ -1471,17 +1471,16 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err error) {
 	errc := make(chan error, 2)
 
-	if h.options.Timeout == 0 {
-		pc.SetReadDeadline(time.Now().Add(5 * time.Minute))
-	} else {
-		pc.SetReadDeadline(time.Now().Add(h.options.Timeout))
-	}
-
 	go func() {
 		b := mPool.Get().([]byte)
 		defer mPool.Put(b)
 
 		for {
+			if h.options.Timeout == 0 {
+				pc.SetReadDeadline(time.Now().Add(defaultTTL))
+			} else {
+				pc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			n, addr, err := pc.ReadFrom(b)
 			if err != nil {
 				// log.Logf("[udp-tun] %s : %s", cc.RemoteAddr(), err)
