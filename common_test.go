@@ -183,7 +183,7 @@ type udpTestServer struct {
 
 func newUDPTestServer(handler udpHandlerFunc) *udpTestServer {
 	laddr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:0")
-	ln, err := net.ListenUDP("udp", laddr)
+	ln, err := ReuseportListenUDP("udp", laddr)
 	if err != nil {
 		panic(fmt.Sprintf("udptest: failed to listen on a port: %v", err))
 	}

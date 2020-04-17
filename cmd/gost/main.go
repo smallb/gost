@@ -23,19 +23,22 @@ var (
 )
 
 func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	gost.SetLogger(&gost.LogLogger{})
 
 	var (
 		printVersion bool
+		Limit        int64
+		moreEth      bool
 	)
 
 	flag.Var(&baseCfg.route.ChainNodes, "F", "forward address, can make a forward chain")
 	flag.Var(&baseCfg.route.ServeNodes, "L", "listen address, can listen on multiple ports (required)")
 	flag.StringVar(&configureFile, "C", "", "configure file")
 	flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
-	flag.BoolVar(&baseCfg.ReusePort, "R", false, "enable reuse port")
+	flag.BoolVar(&baseCfg.Reuseport, "R", false, "enable Reuseport")
 	flag.BoolVar(&printVersion, "V", false, "print version")
+	flag.Int64Var(&Limit, "M", 0, "limit flow (kb)")
+	flag.BoolVar(&moreEth, "E", true, "more eth")
 	if pprofEnabled {
 		flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
 	}
@@ -54,11 +57,13 @@ func init() {
 			os.Exit(1)
 		}
 	}
-
 	if flag.NFlag() == 0 {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
+
+	gost.LimitFLow(Limit)
+	gost.MoreEth = moreEth
 }
 
 func main() {
@@ -97,6 +102,7 @@ func main() {
 
 func start() error {
 	gost.Debug = baseCfg.Debug
+	gost.Reuseport = baseCfg.Reuseport
 
 	var routers []router
 	rts, err := baseCfg.route.GenRouters()

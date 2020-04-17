@@ -20,9 +20,9 @@ var (
 
 type baseConfig struct {
 	route
-	Routes []route
-	Debug  bool
-	ReusePort bool
+	Routes    []route
+	Debug     bool
+	Reuseport bool
 }
 
 func parseBaseConfig(s string) (*baseConfig, error) {
@@ -202,13 +202,19 @@ func parseResolver(cfg string) gost.Resolver {
 				continue
 			}
 			if strings.HasPrefix(s, "https") {
+				p := "https"
+				u, _ := url.Parse(s)
+				if u == nil || u.Scheme == "" {
+					continue
+				}
+				if u.Scheme == "https-chain" {
+					p = u.Scheme
+				}
 				ns := gost.NameServer{
 					Addr:     s,
-					Protocol: "https",
+					Protocol: p,
 				}
-				if err := ns.Init(); err == nil {
-					nss = append(nss, ns)
-				}
+				nss = append(nss, ns)
 				continue
 			}
 
@@ -217,18 +223,14 @@ func parseResolver(cfg string) gost.Resolver {
 				ns := gost.NameServer{
 					Addr: ss[0],
 				}
-				if err := ns.Init(); err == nil {
-					nss = append(nss, ns)
-				}
+				nss = append(nss, ns)
 			}
 			if len(ss) == 2 {
 				ns := gost.NameServer{
 					Addr:     ss[0],
 					Protocol: ss[1],
 				}
-				if err := ns.Init(); err == nil {
-					nss = append(nss, ns)
-				}
+				nss = append(nss, ns)
 			}
 		}
 		return gost.NewResolver(0, nss...)

@@ -3,6 +3,7 @@ package gost
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type Node struct {
 	Client           *Client
 	marker           *failMarker
 	Bypass           *Bypass
+	cacheAliveTime   time.Time
 }
 
 // ParseNode parses the node info.
@@ -75,26 +77,43 @@ func ParseNode(s string) (node Node, err error) {
 	}
 
 	switch node.Transport {
-	case "tls", "mtls", "ws", "mws", "wss", "mwss", "kcp", "ssh", "quic", "ssu", "http2", "h2", "h2c", "obfs4":
 	case "https":
-		node.Protocol = "http"
 		node.Transport = "tls"
-	case "tcp", "udp": // started from v2.1, tcp and udp are for local port forwarding
+	case "tls", "mtls":
+	case "http2", "h2", "h2c":
+	case "ws", "mws", "wss", "mwss":
+	case "kcp", "ssh", "quic":
+	case "ssu":
+		node.Transport = "udp"
+	case "obfs4":
+	case "tcp", "udp":
 	case "rtcp", "rudp": // rtcp and rudp are for remote port forwarding
 	case "ohttp": // obfs-http
 	case "tun", "tap": // tun/tap device
+	case "ftcp": // fake TCP
+	case "dns":
+	case "redu", "redirectu": // UDP tproxy
 	default:
 		node.Transport = "tcp"
 	}
 
 	switch node.Protocol {
-	case "http", "http2", "socks4", "socks4a", "ss", "ss2", "ssu", "sni":
+	case "http", "http2":
+	case "https":
+		node.Protocol = "http"
+	case "socks4", "socks4a":
 	case "socks", "socks5":
 		node.Protocol = "socks5"
+	case "ss", "ssu":
+	case "ss2": // as of 2.10.1, ss2 is same as ss
+		node.Protocol = "ss"
+	case "sni":
 	case "tcp", "udp", "rtcp", "rudp": // port forwarding
 	case "direct", "remote", "forward": // forwarding
-	case "redirect": // TCP transparent proxy
+	case "red", "redirect", "redu", "redirectu": // TCP,UDP transparent proxy
 	case "tun", "tap": // tun/tap device
+	case "ftcp": // fake TCP
+	case "dns", "dot", "doh":
 	default:
 		node.Protocol = ""
 	}
@@ -140,13 +159,16 @@ func (node *Node) GetBool(key string) bool {
 
 // GetInt converts node parameter value to int.
 func (node *Node) GetInt(key string) int {
-	n, _ := strconv.Atoi(node.Values.Get(key))
+	n, _ := strconv.Atoi(node.Get(key))
 	return n
 }
 
 // GetDuration converts node parameter value to time.Duration.
 func (node *Node) GetDuration(key string) time.Duration {
-	d, _ := time.ParseDuration(node.Values.Get(key))
+	d, err := time.ParseDuration(node.Get(key))
+	if err != nil {
+		d = time.Duration(node.GetInt(key)) * time.Second
+	}
 	return d
 }
 
@@ -166,15 +188,19 @@ func (node Node) String() string {
 type NodeGroup struct {
 	ID              int
 	nodes           []Node
+	cacheNode       map[string]Node
 	selectorOptions []SelectOption
 	selector        NodeSelector
 	mux             sync.RWMutex
+	CacheTimeout    time.Duration
 }
 
 // NewNodeGroup creates a node group
 func NewNodeGroup(nodes ...Node) *NodeGroup {
 	return &NodeGroup{
-		nodes: nodes,
+		nodes:        nodes,
+		CacheTimeout: time.Minute * 5,
+		cacheNode:    make(map[string]Node),
 	}
 }
 
@@ -241,13 +267,24 @@ func (group *NodeGroup) GetNode(i int) Node {
 
 // Next selects a node from group.
 // It also selects IP if the IP list exists.
-func (group *NodeGroup) Next() (node Node, err error) {
+func (group *NodeGroup) Next(addr string) (node Node, err error) {
 	if group == nil {
 		return
 	}
 
 	group.mux.RLock()
 	defer group.mux.RUnlock()
+
+	timeout := group.CacheTimeout
+
+	host, _, _ := net.SplitHostPort(addr)
+	node, ok := group.cacheNode[host]
+	if ok && node.marker.FailCount() <= 0 {
+		if time.Now().Before(node.cacheAliveTime) {
+			node.cacheAliveTime = time.Now().Add(timeout)
+			return
+		}
+	}
 
 	selector := group.selector
 	if selector == nil {
@@ -259,6 +296,7 @@ func (group *NodeGroup) Next() (node Node, err error) {
 	if err != nil {
 		return
 	}
-
+	node.cacheAliveTime = time.Now().Add(timeout)
+	group.cacheNode[host] = node
 	return
 }

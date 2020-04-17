@@ -1,6 +1,7 @@
 package gost
 
 import (
+	"context"
 	"errors"
 	"net"
 	"time"
@@ -12,6 +13,8 @@ var (
 	// ErrEmptyChain is an error that implies the chain is empty.
 	ErrEmptyChain = errors.New("empty chain")
 )
+
+var MoreEth bool
 
 // Chain is a proxy chain that holds a list of proxy node groups.
 type Chain struct {
@@ -100,9 +103,14 @@ func (c *Chain) IsEmpty() bool {
 	return c == nil || len(c.nodeGroups) == 0
 }
 
-// Dial connects to the target address addr through the chain.
-// If the chain is empty, it will use the net.Dial directly.
-func (c *Chain) Dial(addr, exitIp string, opts ...ChainOption) (conn net.Conn, err error) {
+// Dial connects to the target TCP address addr through the chain.
+// Deprecated: use DialContext instead.
+func (c *Chain) Dial(address string, opts ...ChainOption) (conn net.Conn, err error) {
+	return c.DialContext(context.Background(), "tcp", address, opts...)
+}
+
+// DialContext connects to the address on the named network using the provided context.
+func (c *Chain) DialContext(ctx context.Context, network, address string, opts ...ChainOption) (conn net.Conn, err error) {
 	options := &ChainOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -117,7 +125,7 @@ func (c *Chain) Dial(addr, exitIp string, opts ...ChainOption) (conn net.Conn, e
 	}
 
 	for i := 0; i < retries; i++ {
-		conn, err = c.dialWithOptions(addr, exitIp, options)
+		conn, err = c.dialWithOptions(ctx, network, address, options)
 		if err == nil {
 			break
 		}
@@ -125,16 +133,21 @@ func (c *Chain) Dial(addr, exitIp string, opts ...ChainOption) (conn net.Conn, e
 	return
 }
 
-func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net.Conn, error) {
+func (c *Chain) dialWithOptions(ctx context.Context, network, address string, options *ChainOptions) (net.Conn, error) {
 	if options == nil {
 		options = &ChainOptions{}
 	}
-	route, err := c.selectRouteFor(addr)
+	route, err := c.selectRouteFor("", address)
 	if err != nil {
 		return nil, err
 	}
 
-	ipAddr := c.resolve(addr, options.Resolver, options.Hosts)
+	log.Logf("[chain] %s - %s - %s", options.LocalAddr, route.LastNode().Addr, address)
+
+	ipAddr := address
+	if address != "" {
+		ipAddr = c.resolve(address, options.Resolver, options.Hosts)
+	}
 
 	timeout := options.Timeout
 	if timeout <= 0 {
@@ -142,41 +155,49 @@ func (c *Chain) dialWithOptions(addr, exitIp string, options *ChainOptions) (net
 	}
 
 	if route.IsEmpty() {
-		var laddr net.Addr
-		if "" != exitIp {
-			host, _, err := net.SplitHostPort(exitIp)
-			if err != nil {
-				return nil, err
-			}
-
-			if "::" == host || ":" == host || "" == host {
-				host = ""
-			}
-			laddr, err = net.ResolveTCPAddr("tcp", host+":0")
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		raddr, err := net.ResolveTCPAddr("tcp", ipAddr)
+		host, _, err := net.SplitHostPort(options.LocalAddr)
 		if err != nil {
 			return nil, err
 		}
-		log.Logf("laddr: %s, raddr: %s", laddr.String(), raddr.String())
-		d := net.Dialer{
-			LocalAddr: laddr,
-			Timeout:   timeout,
+		ip := net.ParseIP(host)
+		if ip.IsLoopback() {
+			host = ""
 		}
-		return d.Dial("tcp", raddr.String())
+		host = net.JoinHostPort(host, "0")
+		switch network {
+		case "udp", "udp4", "udp6":
+			if address == "" {
+				laddr, err := net.ResolveUDPAddr(network, host)
+				if err != nil {
+					return nil, err
+				}
+
+				return ReuseportListenUDP(network, laddr)
+			}
+		default:
+		}
+
+		laddr, err := net.ResolveTCPAddr(network, host)
+		if err != nil {
+			return nil, err
+		}
+		d := &net.Dialer{
+			Timeout: timeout,
+			// LocalAddr: laddr,
+		}
+		if MoreEth {
+			d.LocalAddr = laddr
+		}
+		return d.DialContext(ctx, network, ipAddr)
 	}
 
-	conn, err := route.getConn()
+	conn, err := route.getConn(ctx, options.LocalAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	cOpts := append([]ConnectOption{AddrConnectOption(addr)}, route.LastNode().ConnectOptions...)
-	cc, err := route.LastNode().Client.Connect(conn, ipAddr, cOpts...)
+	cOpts := append([]ConnectOption{AddrConnectOption(address)}, route.LastNode().ConnectOptions...)
+	cc, err := route.LastNode().Client.ConnectContext(ctx, conn, network, ipAddr, cOpts...)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -206,11 +227,13 @@ func (*Chain) resolve(addr string, resolver Resolver, hosts *Hosts) string {
 }
 
 // Conn obtains a handshaked connection to the last node of the chain.
-func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
+func (c *Chain) Conn(raddr string, opts ...ChainOption) (conn net.Conn, err error) {
 	options := &ChainOptions{}
 	for _, opt := range opts {
 		opt(options)
 	}
+
+	ctx := context.Background()
 
 	retries := 1
 	if c != nil && c.Retries > 0 {
@@ -222,11 +245,11 @@ func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
 
 	for i := 0; i < retries; i++ {
 		var route *Chain
-		route, err = c.selectRoute()
+		route, err = c.selectRoute(raddr)
 		if err != nil {
 			continue
 		}
-		conn, err = route.getConn()
+		conn, err = route.getConn(ctx, "")
 		if err == nil {
 			break
 		}
@@ -235,7 +258,7 @@ func (c *Chain) Conn(opts ...ChainOption) (conn net.Conn, err error) {
 }
 
 // getConn obtains a connection to the last node of the chain.
-func (c *Chain) getConn() (conn net.Conn, err error) {
+func (c *Chain) getConn(ctx context.Context, laddr string) (conn net.Conn, err error) {
 	if c.IsEmpty() {
 		err = ErrEmptyChain
 		return
@@ -243,12 +266,12 @@ func (c *Chain) getConn() (conn net.Conn, err error) {
 	nodes := c.Nodes()
 	node := nodes[0]
 
-	cn, err := node.Client.Dial(node.Addr, node.DialOptions...)
+	cn, err := node.Client.Dial(laddr, node.Addr, node.DialOptions...)
 	if err != nil {
 		node.MarkDead()
 		return
 	}
-
+	log.Logf("[chain] 1 %s - %s", cn.LocalAddr().String(), node.Addr)
 	cn, err = node.Client.Handshake(cn, node.HandshakeOptions...)
 	if err != nil {
 		node.MarkDead()
@@ -256,10 +279,11 @@ func (c *Chain) getConn() (conn net.Conn, err error) {
 	}
 	node.ResetDead()
 
+	log.Logf("[chain] 2 %s - %s", cn.LocalAddr().String(), node.Addr)
 	preNode := node
 	for _, node := range nodes[1:] {
 		var cc net.Conn
-		cc, err = preNode.Client.Connect(cn, node.Addr, preNode.ConnectOptions...)
+		cc, err = preNode.Client.ConnectContext(ctx, cn, "tcp", node.Addr, preNode.ConnectOptions...)
 		if err != nil {
 			cn.Close()
 			node.MarkDead()
@@ -272,7 +296,7 @@ func (c *Chain) getConn() (conn net.Conn, err error) {
 			return
 		}
 		node.ResetDead()
-
+		log.Logf("[chain] 3 %s - %s", cc.LocalAddr().String(), node.Addr)
 		cn = cc
 		preNode = node
 	}
@@ -281,12 +305,12 @@ func (c *Chain) getConn() (conn net.Conn, err error) {
 	return
 }
 
-func (c *Chain) selectRoute() (route *Chain, err error) {
-	return c.selectRouteFor("")
+func (c *Chain) selectRoute(raddr string) (route *Chain, err error) {
+	return c.selectRouteFor(raddr, "")
 }
 
 // selectRouteFor selects route with bypass testing.
-func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
+func (c *Chain) selectRouteFor(raddr, addr string) (route *Chain, err error) {
 	if c.IsEmpty() {
 		return newRoute(), nil
 	}
@@ -299,7 +323,7 @@ func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
 
 	for _, group := range c.nodeGroups {
 		var node Node
-		node, err = group.Next()
+		node, err = group.Next(raddr)
 		if err != nil {
 			return
 		}
@@ -326,10 +350,11 @@ func (c *Chain) selectRouteFor(addr string) (route *Chain, err error) {
 
 // ChainOptions holds options for Chain.
 type ChainOptions struct {
-	Retries  int
-	Timeout  time.Duration
-	Hosts    *Hosts
-	Resolver Resolver
+	Retries   int
+	Timeout   time.Duration
+	Hosts     *Hosts
+	Resolver  Resolver
+	LocalAddr string
 }
 
 // ChainOption allows a common way to set chain options.
@@ -360,5 +385,12 @@ func HostsChainOption(hosts *Hosts) ChainOption {
 func ResolverChainOption(resolver Resolver) ChainOption {
 	return func(opts *ChainOptions) {
 		opts.Resolver = resolver
+	}
+}
+
+// LocalAddrChainOption specifies the localAddr used by Chain.Dial.
+func LocalAddrChainOption(localAddr string) ChainOption {
+	return func(opts *ChainOptions) {
+		opts.LocalAddr = localAddr
 	}
 }

@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	reuse "github.com/libp2p/go-reuseport"
+	"github.com/juju/ratelimit"
 )
+
+var limitBucket *ratelimit.Bucket
 
 // Accepter represents a network endpoint that can accept connection from peer.
 type Accepter interface {
@@ -103,35 +105,11 @@ type Listener interface {
 	net.Listener
 }
 
-type tcpListener struct {
-	net.Listener
-}
-
-// TCPListener creates a Listener for TCP proxy server.
-func TCPListener(addr string) (Listener, error) {
-	laddr, err := reuse.ResolveAddr("tcp", addr)
-	if err != nil {
-		return nil, err
+// LimitFLow (kb)
+func LimitFLow(limit int64) {
+	if 0 < limit {
+		limitBucket = ratelimit.NewBucketWithRate((float64)(limit*1024), limit*1024)
 	}
-	ln, err := reuse.Listen("tcp", laddr.String())
-	if err != nil {
-		return nil, err
-	}
-	return &tcpListener{Listener: tcpKeepAliveListener{ln.(*net.TCPListener)}}, nil
-}
-
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return
-	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(KeepAliveTime)
-	return tc, nil
 }
 
 func transport(rw1, rw2 io.ReadWriter) error {
@@ -155,6 +133,10 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	buf := lPool.Get().([]byte)
 	defer lPool.Put(buf)
 
-	_, err := io.CopyBuffer(dst, src, buf)
+	if nil == limitBucket {
+		_, err := io.CopyBuffer(dst, src, buf)
+		return err
+	}
+	_, err := io.CopyBuffer(dst, ratelimit.Reader(src, limitBucket), buf)
 	return err
 }

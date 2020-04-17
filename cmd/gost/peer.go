@@ -11,17 +11,19 @@ import (
 	"time"
 
 	"github.com/ginuerzh/gost"
+	"github.com/go-log/log"
 )
 
 type peerConfig struct {
-	Strategy    string `json:"strategy"`
-	MaxFails    int    `json:"max_fails"`
-	FailTimeout time.Duration
-	period      time.Duration // the period for live reloading
-	Nodes       []string      `json:"nodes"`
-	group       *gost.NodeGroup
-	baseNodes   []gost.Node
-	stopped     chan struct{}
+	Strategy     string `json:"strategy"`
+	MaxFails     int    `json:"max_fails"`
+	FailTimeout  time.Duration
+	CacheTimeout time.Duration
+	period       time.Duration // the period for live reloading
+	Nodes        []string      `json:"nodes"`
+	group        *gost.NodeGroup
+	baseNodes    []gost.Node
+	stopped      chan struct{}
 }
 
 func newPeerConfig() *peerConfig {
@@ -56,6 +58,8 @@ func (cfg *peerConfig) Reload(r io.Reader) error {
 		gost.WithStrategy(gost.NewStrategy(cfg.Strategy)),
 	)
 
+	group.CacheTimeout = cfg.CacheTimeout
+
 	gNodes := cfg.baseNodes
 	nid := len(gNodes) + 1
 	for _, s := range cfg.Nodes {
@@ -65,6 +69,9 @@ func (cfg *peerConfig) Reload(r io.Reader) error {
 		}
 
 		for i := range nodes {
+			if gost.Debug {
+				log.Logf("peer node -> %s", nodes[i].Addr)
+			}
 			nodes[i].ID = nid
 			nid++
 		}
@@ -132,6 +139,8 @@ func (cfg *peerConfig) parse(r io.Reader) error {
 			cfg.period, _ = time.ParseDuration(ss[1])
 		case "peer":
 			cfg.Nodes = append(cfg.Nodes, ss[1])
+		case "cache_timeout":
+			cfg.CacheTimeout, _ = time.ParseDuration(ss[1])
 		}
 	}
 
