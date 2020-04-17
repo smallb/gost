@@ -57,7 +57,7 @@ func (s *Server) Serve(h Handler, opts ...ServerOption) error {
 		h = s.Handler
 	}
 	if h == nil {
-		h = HTTPHandler()
+		h = SOCKS5Handler()
 	}
 
 	l := s.Listener

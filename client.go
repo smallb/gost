@@ -34,7 +34,7 @@ func (c *Client) Connect(conn net.Conn, addr string, options ...ConnectOption) (
 }
 
 // DefaultClient is a standard HTTP proxy client.
-var DefaultClient = &Client{Connector: HTTPConnector(nil), Transporter: TCPTransporter()}
+var DefaultClient = &Client{Connector: SOCKS5Connector(nil), Transporter: TCPTransporter()}
 
 // Dial connects to the address addr via the DefaultClient.
 func Dial(addr string, options ...DialOption) (net.Conn, error) {
@@ -157,9 +157,6 @@ type HandshakeOptions struct {
 	Interval   time.Duration
 	Retry      int
 	TLSConfig  *tls.Config
-	WSOptions  *WSOptions
-	KCPConfig  *KCPConfig
-	QUICConfig *QUICConfig
 }
 
 // HandshakeOption allows a common way to set HandshakeOptions.
@@ -211,27 +208,6 @@ func RetryHandshakeOption(retry int) HandshakeOption {
 func TLSConfigHandshakeOption(config *tls.Config) HandshakeOption {
 	return func(opts *HandshakeOptions) {
 		opts.TLSConfig = config
-	}
-}
-
-// WSOptionsHandshakeOption specifies the websocket options used by websocket handshake
-func WSOptionsHandshakeOption(options *WSOptions) HandshakeOption {
-	return func(opts *HandshakeOptions) {
-		opts.WSOptions = options
-	}
-}
-
-// KCPConfigHandshakeOption specifies the KCP config used by KCP handshake
-func KCPConfigHandshakeOption(config *KCPConfig) HandshakeOption {
-	return func(opts *HandshakeOptions) {
-		opts.KCPConfig = config
-	}
-}
-
-// QUICConfigHandshakeOption specifies the QUIC config used by QUIC handshake
-func QUICConfigHandshakeOption(config *QUICConfig) HandshakeOption {
-	return func(opts *HandshakeOptions) {
-		opts.QUICConfig = config
 	}
 }
 

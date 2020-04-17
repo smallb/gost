@@ -246,7 +246,7 @@ func (h *autoHandler) Handle(conn net.Conn) {
 	case gosocks5.Ver5: // socks5
 		handler = &socks5Handler{options: h.options}
 	default: // http
-		handler = &httpHandler{options: h.options}
+		handler = &socks5Handler{options: h.options}
 	}
 	handler.Init()
 	handler.Handle(cc)

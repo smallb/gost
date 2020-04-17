@@ -72,23 +72,6 @@ func loadCA(caFile string) (cp *x509.CertPool, err error) {
 	return
 }
 
-func parseKCPConfig(configFile string) (*gost.KCPConfig, error) {
-	if configFile == "" {
-		return nil, nil
-	}
-	file, err := os.Open(configFile)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	config := &gost.KCPConfig{}
-	if err = json.NewDecoder(file).Decode(config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
 func parseUsers(authFile string) (users []*url.Userinfo, err error) {
 	if authFile == "" {
 		return
