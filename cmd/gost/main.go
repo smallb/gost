@@ -28,7 +28,7 @@ var (
 	pprofAddr     string
 	pprofEnabled  = os.Getenv("PROFILING") != ""
 	isFlagSet     bool
-	grouters 	  []router
+	grouters      []router
 )
 
 func parseCommand(cmd string) error {
@@ -37,6 +37,7 @@ func parseCommand(cmd string) error {
 	var (
 		printVersion bool
 		limit        int64
+		moreEth      bool
 	)
 
 	baseCfg.route.ChainNodes = baseCfg.route.ChainNodes[0:0]
@@ -84,6 +85,7 @@ func parseCommand(cmd string) error {
 	if 0 < limit {
 		gost.LimitBucket = ratelimit.NewBucketWithRate((float64)(limit*1024), limit*1024)
 	}
+	gost.MoreEth = moreEth
 	return nil
 }
 
@@ -114,6 +116,7 @@ func startEx() error {
 
 	return nil
 }
+
 //export stop
 func stop() {
 	for i := range grouters {

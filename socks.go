@@ -848,7 +848,7 @@ func (h *socks5Handler) Init(options ...HandlerOption) {
 func (h *socks5Handler) Handle(conn net.Conn) {
 	defer conn.Close()
 
-	conn = gosocks5.ServerConn(conn, h.selector)
+	//conn = gosocks5.ServerConn(conn, h.selector)
 	req, err := gosocks5.ReadRequest(conn)
 	if err != nil {
 		log.Logf("[socks5] %s -> %s : %s",
@@ -1132,7 +1132,21 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 		return
 	}
 
-	relay, err := ReuseportListenUDP("udp", nil)
+	laddr, _, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		laddr = ""
+	}
+	laddr = net.JoinHostPort(laddr, "0")
+	if !MoreEth {
+		laddr = ""
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", laddr)
+	if err != nil {
+		return
+	}
+
+	relay, err := ReuseportListenUDP("udp", udpAddr)
 	if err != nil {
 		log.Logf("[socks5-udp] %s -> %s : %s", conn.RemoteAddr(), conn.LocalAddr(), err)
 		reply := gosocks5.NewReply(gosocks5.Failure, nil)
@@ -1158,7 +1172,7 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 
 	// serve as standard socks5 udp relay local <-> remote
 	if h.options.Chain.IsEmpty() {
-		peer, er := ReuseportListenUDP("udp", nil)
+		peer, er := ReuseportListenUDP("udp", udpAddr)
 		if er != nil {
 			log.Logf("[socks5-udp] %s -> %s : %s", conn.RemoteAddr(), conn.LocalAddr(), er)
 			return
@@ -1250,6 +1264,11 @@ func (h *socks5Handler) transportUDP(relay, peer net.PacketConn) (err error) {
 		defer mPool.Put(b)
 
 		for {
+			if h.options.Timeout == 0 {
+				relay.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				relay.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			n, laddr, err := relay.ReadFrom(b)
 			if err != nil {
 				errc <- err
@@ -1287,6 +1306,11 @@ func (h *socks5Handler) transportUDP(relay, peer net.PacketConn) (err error) {
 		defer mPool.Put(b)
 
 		for {
+			if h.options.Timeout == 0 {
+				peer.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				peer.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			n, raddr, err := peer.ReadFrom(b)
 			if err != nil {
 				errc <- err
@@ -1330,6 +1354,11 @@ func (h *socks5Handler) tunnelClientUDP(uc *net.UDPConn, cc net.Conn) (err error
 		defer mPool.Put(b)
 
 		for {
+			if h.options.Timeout == 0 {
+				uc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				uc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			n, addr, err := uc.ReadFromUDP(b)
 			if err != nil {
 				log.Logf("[udp-tun] %s <- %s : %s", cc.RemoteAddr(), addr, err)
@@ -1365,6 +1394,11 @@ func (h *socks5Handler) tunnelClientUDP(uc *net.UDPConn, cc net.Conn) (err error
 
 	go func() {
 		for {
+			if h.options.Timeout == 0 {
+				cc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				cc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			dgram, err := gosocks5.ReadUDPDatagram(cc)
 			if err != nil {
 				log.Logf("[udp-tun] %s -> 0 : %s", cc.RemoteAddr(), err)
@@ -1415,6 +1449,10 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 		if !Can("rudp", addr, h.options.Whitelist, h.options.Blacklist) {
 			log.Logf("[socks5] udp-tun Unauthorized to udp bind to %s", addr)
 			return
+		}
+
+		if !MoreEth {
+			addr = ""
 		}
 
 		bindAddr, _ := net.ResolveUDPAddr("udp", addr)
@@ -1476,6 +1514,11 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 		defer mPool.Put(b)
 
 		for {
+			if h.options.Timeout == 0 {
+				pc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				pc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			n, addr, err := pc.ReadFrom(b)
 			if err != nil {
 				// log.Logf("[udp-tun] %s : %s", cc.RemoteAddr(), err)
@@ -1503,6 +1546,11 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 
 	go func() {
 		for {
+			if h.options.Timeout == 0 {
+				cc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			} else {
+				cc.SetReadDeadline(time.Now().Add(h.options.Timeout))
+			}
 			dgram, err := gosocks5.ReadUDPDatagram(cc)
 			if err != nil {
 				// log.Logf("[udp-tun] %s -> 0 : %s", cc.RemoteAddr(), err)
@@ -1888,11 +1936,11 @@ func socks5Handshake(conn net.Conn, opts ...socks5HandshakeOption) (net.Conn, er
 		selector = cs
 	}
 
-	cc := gosocks5.ClientConn(conn, selector)
-	if err := cc.Handleshake(); err != nil {
-		return nil, err
-	}
-	return cc, nil
+	//cc := gosocks5.ClientConn(conn, selector)
+	//if err := cc.Handleshake(); err != nil {
+	//	return nil, err
+	//}
+	return conn, nil
 }
 
 func getSocks5UDPTunnel(chain *Chain, addr net.Addr) (net.Conn, error) {

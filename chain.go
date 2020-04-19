@@ -14,6 +14,8 @@ var (
 	ErrEmptyChain = errors.New("empty chain")
 )
 
+var MoreEth bool
+
 // Chain is a proxy chain that holds a list of proxy node groups.
 type Chain struct {
 	isRoute    bool
@@ -169,6 +171,7 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 				if err != nil {
 					return nil, err
 				}
+
 				return ReuseportListenUDP(network, laddr)
 			}
 		default:
@@ -179,10 +182,12 @@ func (c *Chain) dialWithOptions(ctx context.Context, network, address string, op
 			return nil, err
 		}
 		d := &net.Dialer{
-			Timeout:   timeout,
-			LocalAddr: laddr,
+			Timeout: timeout,
+			// LocalAddr: laddr,
 		}
-
+		if MoreEth {
+			d.LocalAddr = laddr
+		}
 		return d.DialContext(ctx, network, ipAddr)
 	}
 
