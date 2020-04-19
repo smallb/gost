@@ -955,8 +955,8 @@ func (h *socks5Handler) handleConnect(conn net.Conn, req *gosocks5.Request) {
 			return // ignore i/o timeout
 		}
 
-		Error.Printf("[socks5 tcp] %s -> %s -> %s: %s\n",
-			conn.RemoteAddr(), conn.LocalAddr(), host, err)
+		//Error.Printf("[socks5 tcp] %s -> %s -> %s: %s\n",
+		//	conn.RemoteAddr(), conn.LocalAddr(), host, err)
 	}
 
 	if err != nil {
@@ -1482,7 +1482,7 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 	cc, err := h.options.Chain.Conn(conn.RemoteAddr().String())
 	// connection error
 	if err != nil {
-		Error.Printf("[socks5 udp] udp-tun %s -> %s : %s\n", conn.RemoteAddr(), req.Addr, err)
+		//Error.Printf("[socks5 udp] udp-tun %s -> %s : %s\n", conn.RemoteAddr(), req.Addr, err)
 		log.Logf("[socks5] udp-tun %s -> %s : %s", conn.RemoteAddr(), req.Addr, err)
 		reply := gosocks5.NewReply(gosocks5.Failure, nil)
 		reply.Write(conn)
