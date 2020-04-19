@@ -51,6 +51,7 @@ func parseCommand(cmd string) error {
 		flag.BoolVar(&baseCfg.Debug, "D", false, "enable debug log")
 		flag.BoolVar(&baseCfg.Reuseport, "R", false, "enable Reuseport")
 		flag.BoolVar(&printVersion, "V", false, "print version")
+		flag.BoolVar(&moreEth, "E", true, "more eth")
 		flag.Int64Var(&limit, "M", 0, "limit flow (kb)")
 		if pprofEnabled {
 			flag.StringVar(&pprofAddr, "P", ":6060", "profiling HTTP server address")
@@ -177,7 +178,9 @@ func main() {
 		command += " "
 	}
 
-	start(command)
+	if 0 != start(command) {
+		return
+	}
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
