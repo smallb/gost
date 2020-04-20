@@ -134,7 +134,9 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	defer lPool.Put(buf)
 
 	if nil == LimitBucket {
+		log.Log("copy buffer 1")
 		_, err := io.CopyBuffer(dst, src, buf)
+		log.Log("copy buffer 2")
 		return err
 	}
 	_, err := io.CopyBuffer(dst, ratelimit.Reader(src, LimitBucket), buf)

@@ -44,6 +44,8 @@ func (tr *tcpTransporter) Dial(laddr, addr string, options ...DialOption) (net.C
 			Timeout:   timeout,
 			LocalAddr: laddr,
 		}
+		log.Logf("[tcp] 1 opts.LocalAddr:%s", laddr)
+		defer log.Logf("[tcp] 2 opts.LocalAddr:%s", laddr)
 		return d.Dial("tcp", addr)
 	}
 	return opts.Chain.Dial(addr)

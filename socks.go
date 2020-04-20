@@ -1265,7 +1265,7 @@ func (h *socks5Handler) transportUDP(relay, peer net.PacketConn) (err error) {
 
 		for {
 			if h.options.Timeout == 0 {
-				relay.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				relay.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				relay.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1307,7 +1307,7 @@ func (h *socks5Handler) transportUDP(relay, peer net.PacketConn) (err error) {
 
 		for {
 			if h.options.Timeout == 0 {
-				peer.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				peer.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				peer.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1355,7 +1355,7 @@ func (h *socks5Handler) tunnelClientUDP(uc *net.UDPConn, cc net.Conn) (err error
 
 		for {
 			if h.options.Timeout == 0 {
-				uc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				uc.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				uc.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1395,7 +1395,7 @@ func (h *socks5Handler) tunnelClientUDP(uc *net.UDPConn, cc net.Conn) (err error
 	go func() {
 		for {
 			if h.options.Timeout == 0 {
-				cc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				cc.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				cc.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1451,6 +1451,15 @@ func (h *socks5Handler) handleUDPTunnel(conn net.Conn, req *gosocks5.Request) {
 			return
 		}
 
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			log.Logf("[socks5] udp-tun addr split failed %s", err)
+			return
+		}
+		ip := net.ParseIP(host)
+		if ip.IsLoopback() || ip.IsMulticast() {
+			addr = ""
+		}
 		if !MoreEth {
 			addr = ""
 		}
@@ -1515,7 +1524,7 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 
 		for {
 			if h.options.Timeout == 0 {
-				pc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				pc.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				pc.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}
@@ -1547,7 +1556,7 @@ func (h *socks5Handler) tunnelServerUDP(cc net.Conn, pc net.PacketConn) (err err
 	go func() {
 		for {
 			if h.options.Timeout == 0 {
-				cc.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				cc.SetReadDeadline(time.Now().Add(3 * time.Minute))
 			} else {
 				cc.SetReadDeadline(time.Now().Add(h.options.Timeout))
 			}

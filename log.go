@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
 }
 
 // LogLogger uses the standard log package as the logger
